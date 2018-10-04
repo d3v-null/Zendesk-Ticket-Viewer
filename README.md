@@ -13,6 +13,17 @@ Use develop instead of install if you would like make changes to this module.
 
 # Testing
 
+In order to perform tests, it is assumed that the account you are using has been
+populated with the test data in `tests/test_data/tickets.json`. To populate
+your test account with this data, you can use the script `populate_test_data.sh`
+
+```bash
+ZENDESK_SUBDOMAIN='subdomain' \
+ZENDESK_EMAIL='email' \
+ZENDESK_PASSWORD='password' \
+tests/test_data/populate_test_data.sh tests/test_data/tickets.json
+```
+
 setup.py will use the tests directory to test the `zendesk_ticket_viewer` module.
 
 ```bash
