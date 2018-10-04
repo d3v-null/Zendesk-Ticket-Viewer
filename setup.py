@@ -44,6 +44,13 @@ setup(
         'zenpy',
         'configargparse',
     ],
+    setup_requires=["pytest-runner"],
+    tests_require=[
+        'pytest',
+        'coverage',
+        'mock',
+        'pytest-cov',
+    ],
     entry_points={  # Creates a console script entry point on install
         'console_scripts': [
             '{0}={0}.core:main'.format(PKG_NAME),
