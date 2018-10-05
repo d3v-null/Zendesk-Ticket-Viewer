@@ -1,3 +1,5 @@
+"""Provide core functionality to zendesk_ticket_viewer module."""
+
 from __future__ import print_function, unicode_literals
 
 import sys
@@ -10,8 +12,7 @@ from .exceptions import ZTVConfigException
 
 
 def get_config(argv=None):
-    """ Parse arguments from cli, env and config files. """
-
+    """Parse arguments from cli, env and config files."""
     argv = sys.argv[1:] if argv is None else argv
 
     parser = configargparse.ArgumentParser(
@@ -33,7 +34,6 @@ def validate_connection(config, session=None):
     """
     Test a connection to the api base that is credential independent.
 
-
     Example of response when subdomain exists:
 
     ```
@@ -47,13 +47,15 @@ def validate_connection(config, session=None):
     < HTTP/1.1 301 Moved Permanently
     ```
 
-    Args:
+    Args
+    ----
         config (:obj:`configargparse.Namespace`): the config namespace which
             must contain a `subdomain` attribute
         session (:obj:`requests.Session`, optional): The session object through
             which connections are made (makes mocking easier).
 
-    Raises:
+    Raises
+    ------
         ZTVConfigException: If an invalid subdomain has been provided.
         requests.exceptions.ConnectionError: If a connection could not be made
             to the subdomain
@@ -76,8 +78,7 @@ def validate_connection(config, session=None):
 
 
 def main():
-    """ Provide Core functionality of ticket viewer. """
-
+    """Provide Core functionality of ticket viewer."""
     config = get_config()
 
     # The Ticket Viewer should handle the API being unavailable

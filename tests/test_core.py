@@ -41,8 +41,7 @@ class TestMainMocked(unittest.TestCase):
     @mock.patch('requests.Session')
     def mock_validate_connection(self, subdomain, mock_status_code, session_mock):
         """
-        Call `validate_connection` using a mocked session which always returns a
-        given status_code.
+        Call `validate_connection` using a mocked session which always returns a given status_code.
 
         Args:
             subdomain (str): The subdomain which is being tested
