@@ -44,9 +44,8 @@ zendesk_ticket_viewer \
 # Roadmap
  - [x] make a barebones module which uses one of these clients https://developer.zendesk.com/rest_api/docs/api-clients/python
  - [x] *testing* - write skeleton of testing suite
- - [X] *testing* - automate tests on multiple Python versions with Travis / Codeclimate
- - [ ] Validate API connection
- - [ ] Validate API creds
+ - [x] *testing* - automate tests on multiple Python versions with Travis / Codeclimate
+ - [x] Validate API connection
  - [ ] build curses CLI using npyscreen
  - [ ] *testing* - full coverage of functions called by CLI
  - [ ] *testing* - (time-dependent) full coverage of curses interface by injecting stdin of a subprocess
