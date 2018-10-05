@@ -43,6 +43,7 @@ setup(
     install_requires=[
         'zenpy',
         'configargparse',
+        'requests'
     ],
     setup_requires=["pytest-runner"],
     tests_require=[
