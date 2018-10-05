@@ -43,7 +43,8 @@ setup(
     install_requires=[
         'zenpy',
         'configargparse',
-        'requests'
+        'requests',
+        'npyscreen',
     ],
     setup_requires=["pytest-runner"],
     tests_require=[

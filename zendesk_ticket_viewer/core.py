@@ -9,6 +9,7 @@ import requests
 from zenpy import Zenpy
 
 from .exceptions import ZTVConfigException
+from .cli import ZTVApp
 
 
 def get_config(argv=None):
@@ -82,7 +83,7 @@ def main():
     config = get_config()
 
     # The Ticket Viewer should handle the API being unavailable
-    validate_connection()
+    validate_connection(config)
 
     zenpy_creds = dict([
         (zenpy_key, getattr(config, config_key)) for zenpy_key, config_key in [
@@ -94,11 +95,16 @@ def main():
 
     zenpy_client = Zenpy(**zenpy_creds)
 
-    ticket_generator = zenpy_client.tickets()
+    # hand over to cli
 
-    first_ticket = ticket_generator[25:][0]
+    ztv_app = ZTVApp(zenpy_client)
+    ztv_app.run()
 
-    print(first_ticket.to_json())
+    # ticket_generator = zenpy_client.tickets()
+    #
+    # first_ticket = ticket_generator[25:][0]
+    #
+    # print(first_ticket.to_dict())
 
 if __name__ == '__main__':
     main()
