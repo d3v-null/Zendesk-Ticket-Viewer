@@ -1,0 +1,3 @@
+[run]
+source = zendesk_ticket_viewer
+omit = tests*
