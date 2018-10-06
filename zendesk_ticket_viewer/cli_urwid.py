@@ -40,6 +40,7 @@ class TicketList(urwid.Columns):
 
     _selectable = True
     header_size = 1
+    footer_size = 0
     # how quickly the scrolls when paging
     page_speed = 1
 
@@ -78,6 +79,11 @@ class TicketList(urwid.Columns):
         )
         # Refresh widgets as if there was room for 1 row.
         self.refresh_widgets((None, self.header_size + 1))
+
+    @property
+    def nonbody_overhead(self):
+        """Rows taken up by the header and footer."""
+        return self.header_size + self.footer_size
 
     def initial_widget_list(self):
         """
@@ -140,9 +146,19 @@ class TicketList(urwid.Columns):
             size (:obj:`tuple` of :obj:`int`): The allowed size of the widget
 
         """
+        PKG_LOGGER.debug('refreshing, size={}'.format(size))
         _, maxcol = size
         visible_tickets = self.get_tickets(
-            self.offset, maxcol - self.header_size)
+            self.offset, maxcol - self.nonbody_overhead
+        )
+        PKG_LOGGER.debug('-> visible tickets: {}'.format(len(visible_tickets)))
+        index_highlighted = numpy.clip(
+            self.index_highlighted,
+            0,
+            min(maxcol - self.nonbody_overhead, len(visible_tickets)) - 1
+        )
+        PKG_LOGGER.debug('-> index highlighted: {}'.format(index_highlighted))
+
         # TODO: populate frame body of each column with visible tickets
         for column, _ in self.contents:
             meta = self.column_meta.get(column.key, {})
@@ -160,8 +176,8 @@ class TicketList(urwid.Columns):
             if column.key == '_selected':
                 selected_widget = TicketCell('>')
             else:
-                selected_widget = cell_widgets[self.index_highlighted]
-            cell_widgets[self.index_highlighted] = urwid.AttrWrap(
+                selected_widget = cell_widgets[index_highlighted]
+            cell_widgets[index_highlighted] = urwid.AttrWrap(
                 selected_widget, 'important'
             )
             # TODO: test for memory usage
@@ -175,12 +191,15 @@ class TicketList(urwid.Columns):
         Even if movement is 0 it is useful to refresh these values since the
         widget can be resized.
         """
+        PKG_LOGGER.debug('scrolling, size={} movement={}'.format(
+            size, movement
+        ))
         _, maxcol = size
         # move highlighted index until boundaries
         can_move_to = numpy.clip(
             self.index_highlighted + movement,
             0,
-            maxcol - self.header_size
+            maxcol - self.nonbody_overhead - 1
         )
         # determine remaining movement to potentially move the offset
         movement = movement - (can_move_to - self.index_highlighted)
@@ -221,11 +240,12 @@ class TicketList(urwid.Columns):
             getattr(self, '_action_{}'.format(key_actions[key]))()
 
         # Map key value to scroll movement amount
+        page_jump = int(self.page_speed * (maxcol - self.nonbody_overhead))
         key_movements = {
             'up': -1,
             'down': 1,
-            'page up': int(self.page_speed * (maxcol - self.header_size)),
-            'page down': int(self.page_speed * (self.header_size - maxcol))
+            'page up': -page_jump,
+            'page down': page_jump
         }
         self.scroll(size, key_movements.get(key, 0))
         return super(TicketList, self).keypress(size, key)

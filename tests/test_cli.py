@@ -28,6 +28,27 @@ if True:
 
 
 class TestCliMocked(unittest.TestCase):
+    expected_start_content = [
+    	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
+    	b'>', b'       1 ', b'Sample ticket: Meet ', b'Incident  ', b'normal    ',
+    	b' ', b'       2 ', b'velit eiusmod repreh', b'Ticket    ', b'-         ',
+    	b' ', b'       3 ', b'excepteur laborum ex', b'Ticket    ', b'-         ',
+    	b' ', b'       4 ', b'ad sunt qui aute ull', b'Ticket    ', b'-         ',
+    	b' ', b'       5 ', b'aliquip mollit quis ', b'Ticket    ', b'-         ',
+    	b' ', b'       6 ', b'nisi aliquip ipsum n', b'Ticket    ', b'-         ',
+    	b' ', b'       7 ', b'cillum quis nostrud ', b'Ticket    ', b'-         ',
+    	b' ', b'       8 ', b'proident est nisi no', b'Ticket    ', b'-         ',
+    	b' ', b'       9 ', b'veniam ea eu minim a', b'Ticket    ', b'-         '
+    ]
+
+    def setUp(self):
+        tickets_path = os.path.join(TEST_DATA_DIR, 'tickets.pkl')
+        with open(tickets_path, 'rb') as tickets_file:
+            # dumb hack to unpickle a file from python3
+            self.tickets = (
+                zenpy.lib.api_objects.Ticket(**json.loads(ticket))
+                for ticket in pickle.load(tickets_file)
+            )
 
     def test_ticket_cell_render(self):
         """
@@ -94,34 +115,73 @@ class TestCliMocked(unittest.TestCase):
         return injected(client)
 
     def test_ticket_list_render(self):
-        tickets_path = os.path.join(TEST_DATA_DIR, 'tickets.pkl')
-        with open(tickets_path, 'rb') as tickets_file:
-            # dumb hack to unpickle a file from python3
-            tickets = (
-                zenpy.lib.api_objects.Ticket(**json.loads(ticket))
-                for ticket in pickle.load(tickets_file)
-            )
-
         def injected(client):
             return TicketList(client)
 
-        ticket_list = self.with_mocked_tickets(injected, tickets)
+        ticket_list = self.with_mocked_tickets(injected, self.tickets)
 
-        composite = ticket_list.render((50, 10), True)
+        screen_size = (50, 10)
+
+        composite = ticket_list.render(screen_size, True)
         text_content = list(
             text for _, _, text in itertools.chain(*composite.content())
         )
-        expected = [
-        	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
-        	b'>', b'       1 ', b'Sample ticket: Meet ', b'Incident  ', b'normal    ',
-        	b' ', b'       2 ', b'velit eiusmod repreh', b'Ticket    ', b'-         ',
-        	b' ', b'       3 ', b'excepteur laborum ex', b'Ticket    ', b'-         ',
-        	b' ', b'       4 ', b'ad sunt qui aute ull', b'Ticket    ', b'-         ',
-        	b' ', b'       5 ', b'aliquip mollit quis ', b'Ticket    ', b'-         ',
-        	b' ', b'       6 ', b'nisi aliquip ipsum n', b'Ticket    ', b'-         ',
-        	b' ', b'       7 ', b'cillum quis nostrud ', b'Ticket    ', b'-         ',
-        	b' ', b'       8 ', b'proident est nisi no', b'Ticket    ', b'-         ',
-        	b' ', b'       9 ', b'veniam ea eu minim a', b'Ticket    ', b'-         '
-        ]
-        # import pudb; pudb.set_trace()
-        self.assertEqual(text_content, expected)
+        self.assertEqual(text_content, self.expected_start_content)
+
+    def test_ticket_list_render_paging_small(self):
+        """
+        Capture the case where previously, bounds were not checked correctly for
+        highlighted_index.
+        """
+        def injected(client):
+            return TicketList(client)
+
+        screen_size = (50, 10)
+
+        ticket_list = self.with_mocked_tickets(injected, self.tickets)
+        ticket_list.render(screen_size, True)
+        ticket_list.keypress(screen_size, 'page down')
+        ticket_list.keypress(screen_size, 'page down')
+        ticket_list.keypress(screen_size, 'page up')
+        ticket_list.keypress(screen_size, 'page up')
+
+        composite = ticket_list.render(screen_size, True)
+        text_content = list(
+            text for _, _, text in itertools.chain(*composite.content())
+        )
+        self.assertEqual(text_content, self.expected_start_content)
+
+    def test_ticket_list_render_paging_hard(self):
+        """
+        Capture the edge case where the last page has less visible tickets
+        than the previous page, causing selected_index to fall off visible tickets.
+        """
+        def injected(client):
+            return TicketList(client)
+
+        screen_size = (50, 38)
+
+        ticket_list = self.with_mocked_tickets(injected, self.tickets)
+        ticket_list.render(screen_size, True)
+        ticket_list.keypress(screen_size, 'page down')
+        ticket_list.keypress(screen_size, 'page down')
+        ticket_list.keypress(screen_size, 'page down')
+
+    def test_ticket_list_render_paging_resize(self):
+        """
+        Capture the edge case where a widget is resized after scrolling to the
+        bottom.
+        """
+        def injected(client):
+            return TicketList(client)
+
+        screen_size = (50, 38)
+
+        ticket_list = self.with_mocked_tickets(injected, self.tickets)
+        ticket_list.render(screen_size, True)
+        ticket_list.keypress(screen_size, 'page down')
+        ticket_list.keypress(screen_size, 'page down')
+        ticket_list.keypress(screen_size, 'page down')
+
+        screen_size = (50, 10)
+        ticket_list.render(screen_size, True)
