@@ -129,12 +129,8 @@ def validate_connection(config, session=None):
             "Subdomain provided does not exist: %s" % config.subdomain)
 
 
-def main():
-    """Provide Core functionality of ticket viewer."""
-    config = get_config()
-
-    setup_logging(config)
-
+def get_client(config):
+    """Given a `config`, create a Zenpy API client."""
     # The Ticket Viewer should handle the API being unavailable
     try:
         validate_connection(config)
@@ -157,18 +153,31 @@ def main():
 
     zenpy_client = Zenpy(**zenpy_creds)
 
-    if config.pickle_tickets:
-        ticket_generator = zenpy_client.tickets()
-        with open('tests/test_data/tickets.pkl', 'wb') as dump_file:
-            tickets = []
-            for ticket in ticket_generator:
-                ticket._clean_dirty()
-                ticket = ticket.to_json()
-                tickets.append(ticket)
-            # needs to be unpickable on PY2 and PY3
-            pickle.dump(tickets, dump_file, protocol=2)
+    if not config.pickle_tickets:
+        return zenpy_client
+
+    ticket_generator = zenpy_client.tickets()
+    with open('tests/test_data/tickets.pkl', 'wb') as dump_file:
+        tickets = []
+        for ticket in ticket_generator:
+            ticket._clean_dirty()
+            ticket = ticket.to_json()
+            tickets.append(ticket)
+        # needs to be unpickable on PY2 and PY3
+        pickle.dump(tickets, dump_file, protocol=2)
+
+    return zenpy_client
+
+
+def main():
+    """Provide Core functionality of ticket viewer."""
+    config = get_config()
+
+    setup_logging(config)
 
     # hand over to cli
+
+    zenpy_client = get_client(config)
 
     ztv_app = ZTVApp(zenpy_client)
     ztv_app.run()
