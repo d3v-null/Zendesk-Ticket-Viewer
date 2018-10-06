@@ -152,7 +152,6 @@ def main():
     ])
 
     zenpy_client = Zenpy(**zenpy_creds)
-    # zenpy_client = None
 
     # hand over to cli
 

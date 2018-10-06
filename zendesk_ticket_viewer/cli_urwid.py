@@ -85,12 +85,7 @@ class TicketList(urwid.Columns):
             title = meta.get('title', key.title())
             column_widget = TicketColumn(
                 header=TicketCell(title),
-                body=urwid.ListBox(urwid.SimpleListWalker([
-                    # TicketCell("row 1"),
-                    # urwid.AttrWrap(TicketCell("row 2"), 'important'),
-                    # TicketCell("row 3"),
-                    # TicketCell("row 4"),
-                ])),
+                body=urwid.ListBox(urwid.SimpleListWalker([])),
                 key=key
             )
             if 'sizing' in meta:
