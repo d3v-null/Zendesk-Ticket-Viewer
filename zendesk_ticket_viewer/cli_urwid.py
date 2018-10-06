@@ -83,7 +83,9 @@ class TicketList(urwid.Columns):
                 key=key
             )
             if 'sizing' in meta:
-                column_widget = tuple([*meta['sizing'], column_widget])
+                column_widget = tuple(
+                    meta['sizing'] + [column_widget]
+                )
             widget_list.append(column_widget)
 
         return widget_list

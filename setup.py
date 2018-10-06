@@ -44,6 +44,8 @@ setup(
         'zenpy',
         'configargparse',
         'requests',
+        'urwid',
+        'numpy',
     ],
     setup_requires=["pytest-runner"],
     tests_require=[
