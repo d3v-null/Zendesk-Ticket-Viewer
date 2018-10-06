@@ -3,12 +3,12 @@
 from __future__ import print_function, unicode_literals
 
 import logging
+import pickle
 import sys
 
 import requests
 
 import configargparse
-import pickle
 from zenpy import Zenpy
 
 from . import PKG_NAME
@@ -131,7 +131,6 @@ def validate_connection(config, session=None):
 
 def get_client(config):
     """Given a `config`, create a Zenpy API client."""
-
     zenpy_creds = dict([
         (zenpy_key, getattr(config, config_key)) for zenpy_key, config_key in [
             ('email', 'email'),
@@ -142,16 +141,16 @@ def get_client(config):
 
     zenpy_client = Zenpy(**zenpy_creds)
 
-    if not config.pickle_tickets:
-        return zenpy_client
+    return zenpy_client
 
-    ticket_generator = zenpy_client.tickets()
+
+def pickle_tickets(config, client):
+    """Store API tickets for later deserialization."""
+    ticket_generator = client.tickets()
     with open('tests/test_data/tickets.pkl', 'wb') as dump_file:
         tickets = [ticket.to_json() for ticket in ticket_generator]
         # needs to be unpickable on PY2 and PY3
         pickle.dump(tickets, dump_file, protocol=2)
-
-    return zenpy_client
 
 
 def main():
@@ -175,6 +174,9 @@ def main():
     # hand over to cli
 
     zenpy_client = get_client(config)
+
+    if config.pickle_tickets:
+        pickle_tickets(config, zenpy_client)
 
     ztv_app = ZTVApp(zenpy_client)
     ztv_app.run()

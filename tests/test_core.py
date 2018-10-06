@@ -5,7 +5,7 @@ import configargparse
 import requests
 
 from six import MovedModule, add_move
-from zendesk_ticket_viewer.core import get_config, validate_connection
+from zendesk_ticket_viewer.core import get_config, validate_connection, get_client
 from zendesk_ticket_viewer.exceptions import ZTVConfigException
 
 if True:
@@ -15,11 +15,12 @@ if True:
 
 
 class TestMainMocked(unittest.TestCase):
+    dummy_subdomain = 'foo.com'
+    dummy_email = 'bar@baz.com'
+    dummy_password = 'qux'
+
     def test_get_config_argv(self):
-        """ Test that the get_config can parse the argv parameter. """
-        dummy_subdomain = 'foo.com'
-        dummy_email = 'bar@baz.com'
-        dummy_password = 'qux'
+        """Test that the get_config can parse the argv parameter."""
 
         # construct argv from dummy data
         dummy_args = shlex.split(
@@ -28,15 +29,15 @@ class TestMainMocked(unittest.TestCase):
                 "--email '{email}' "
                 "--password '{password}'"
             ).format(
-                subdomain=dummy_subdomain,
-                email=dummy_email,
-                password=dummy_password
+                subdomain=self.dummy_subdomain,
+                email=self.dummy_email,
+                password=self.dummy_password
             )
         )
         config = get_config(argv=dummy_args)
-        self.assertEqual(config.subdomain, dummy_subdomain)
-        self.assertEqual(config.email, dummy_email)
-        self.assertEqual(config.password, dummy_password)
+        self.assertEqual(config.subdomain, self.dummy_subdomain)
+        self.assertEqual(config.email, self.dummy_email)
+        self.assertEqual(config.password, self.dummy_password)
 
     @mock.patch('requests.Session')
     def mock_validate_connection(self, subdomain, status_code, session_mock):
@@ -70,3 +71,13 @@ class TestMainMocked(unittest.TestCase):
     def test_validate_connection_bad_subdomain(self):
         with self.assertRaises(ZTVConfigException):
             self.mock_validate_connection('bad_subdomain', 301)
+
+    def test_get_client_mocked(self):
+        config = configargparse.Namespace(
+            subdomain=self.dummy_subdomain,
+            email=self.dummy_email,
+            password=self.dummy_password
+        )
+        api = get_client(config)
+        self.assertEqual(api.tickets.subdomain, config.subdomain)
+        self.assertEqual(api.tickets.session.auth, (config.email, config.password))
