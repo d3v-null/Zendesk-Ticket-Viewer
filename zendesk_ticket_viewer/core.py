@@ -131,17 +131,6 @@ def validate_connection(config, session=None):
 
 def get_client(config):
     """Given a `config`, create a Zenpy API client."""
-    # The Ticket Viewer should handle the API being unavailable
-    try:
-        validate_connection(config)
-    except (
-        ZTVConfigException,
-        requests.exceptions.ConnectionError,
-        requests.exceptions.ProtocolError
-    ) as exc:
-        exit_to_console("could not validate connection: %s" % exc)
-    finally:
-        PKG_LOGGER.info("Connection validated")
 
     zenpy_creds = dict([
         (zenpy_key, getattr(config, config_key)) for zenpy_key, config_key in [
@@ -158,11 +147,7 @@ def get_client(config):
 
     ticket_generator = zenpy_client.tickets()
     with open('tests/test_data/tickets.pkl', 'wb') as dump_file:
-        tickets = []
-        for ticket in ticket_generator:
-            ticket._clean_dirty()
-            ticket = ticket.to_json()
-            tickets.append(ticket)
+        tickets = [ticket.to_json() for ticket in ticket_generator]
         # needs to be unpickable on PY2 and PY3
         pickle.dump(tickets, dump_file, protocol=2)
 
@@ -174,6 +159,18 @@ def main():
     config = get_config()
 
     setup_logging(config)
+
+    # The Ticket Viewer should handle the API being unavailable
+    try:
+        validate_connection(config)
+    except (
+        ZTVConfigException,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.ProtocolError
+    ) as exc:
+        exit_to_console("could not validate connection: %s" % exc)
+    finally:
+        PKG_LOGGER.info("Connection validated")
 
     # hand over to cli
 
