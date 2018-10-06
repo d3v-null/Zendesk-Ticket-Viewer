@@ -60,7 +60,5 @@ SETUP_KWARGS = dict(
         ],
     },
 )
-# if sys.version_info < (3, 0):
-#     SETUP_KWARGS['tests_require'].remove('coverage')
 
 setup(**SETUP_KWARGS)
