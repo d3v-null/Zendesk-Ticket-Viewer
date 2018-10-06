@@ -101,7 +101,7 @@ class TicketList(urwid.Columns):
 
         return widget_list
 
-    def get_tickets(self, offset, limit=None):
+    def get_tickets(self, offset, limit):
         """
         Fetch `limit` tickets from the generator starting at `offset`.
 
@@ -116,15 +116,12 @@ class TicketList(urwid.Columns):
 
         try:
             while True:
-                if limit is not None \
-                        and prefetch_index < len(self._ticket_cache):
+                if prefetch_index < len(self._ticket_cache):
                     break
                 self._ticket_cache.append(self.ticket_generator.next())
         except StopIteration:
             pass
-        if limit is not None:
-            return self._ticket_cache[offset:offset + limit]
-        return self._ticket_cache[offset:]
+        return self._ticket_cache[offset:offset + limit]
 
     def refresh_widgets(self, size):
         """
