@@ -8,6 +8,7 @@ import sys
 import requests
 
 import configargparse
+import pickle
 from zenpy import Zenpy
 
 from . import PKG_NAME
@@ -34,14 +35,17 @@ def get_config(argv=None):
 
     # Logging
     parser.add('--log-file', default='.%s.log' % PKG_NAME)
-    parser.add('--verbosity', choices=[
-        'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'
-    ], default='WARNING'
+    parser.add(
+        '--verbosity', choices=[
+            'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'
+        ], default='WARNING'
+    )
+    parser.add(
+        '--pickle-tickets', help=configargparse.SUPPRESS,
+        action='store_true'
     )
 
     config = parser.parse_args(argv)
-
-    print(parser.format_values())
 
     return config
 
@@ -153,10 +157,18 @@ def main():
 
     zenpy_client = Zenpy(**zenpy_creds)
 
-    # hand over to cli
+    if config.pickle_tickets:
+        ticket_generator = zenpy_client.tickets()
+        with open('tests/test_data/tickets.pkl', 'wb') as dump_file:
+            tickets = []
+            for ticket in ticket_generator:
+                ticket._clean_dirty()
+                ticket = ticket.to_json()
+                tickets.append(ticket)
+            # needs to be unpickable on PY2 and PY3
+            pickle.dump(tickets, dump_file, protocol=2)
 
-    ticket_generator = zenpy_client.tickets()
-    PKG_LOGGER.debug(ticket_generator[:1][0].to_dict())
+    # hand over to cli
 
     ztv_app = ZTVApp(zenpy_client)
     ztv_app.run()
