@@ -47,7 +47,8 @@ class TicketList(urwid.Columns):
         ('id', {
             'title': 'Ticket #',
             'sizing': ['fixed', 9],
-            'align': 'right'
+            'align': 'right',
+            'formatter': (lambda x: " {} ".format(x))
         }),
         ('subject', {}),
         ('type', {
@@ -68,6 +69,8 @@ class TicketList(urwid.Columns):
         self.offset = 0
         # Index of the highlighted element
         self.index_highlighted = 0
+        # Force a space of 1 between columns
+        kwargs['dividechars'] = 0
         super(TicketList, self).__init__(
             self.initial_widget_list(), *args, **kwargs
         )
@@ -134,9 +137,19 @@ class TicketList(urwid.Columns):
             self.offset, maxcol - self.header_size)
         # TODO: populate frame body of each column with visible tickets
         for column, _ in self.contents:
-            formatter = self.column_meta[column.key].get('formatter', str)
+            if column.key == '_selected':
+                # TODO: put chevron at start of selected row
+                continue
+            meta = self.column_meta[column.key]
+            formatter = meta.get('formatter', str)
+            cell_kwargs = {}
+            if 'align' in meta:
+                cell_kwargs['align'] = meta['align']
             cell_widgets = [
-                TicketCell(formatter(ticket.to_dict().get(column.key, '')))
+                TicketCell(
+                    formatter(ticket.to_dict().get(column.key, '')),
+                    **cell_kwargs
+                )
                 for ticket in visible_tickets
             ]
             cell_widgets[self.index_highlighted] = urwid.AttrWrap(

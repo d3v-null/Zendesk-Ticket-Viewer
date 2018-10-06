@@ -113,15 +113,15 @@ class TestCliMocked(unittest.TestCase):
         )
         expected = [
             b'Ticket # ', b'Subject      ', b'Type         ', b'Priority     ',
-            b'1        ', b'Sample ticket', b'Incident     ', b'normal       ',
-            b'2        ', b'velit eiusmod', b'Ticket       ', b'-            ',
-            b'3        ', b'excepteur lab', b'Ticket       ', b'-            ',
-            b'4        ', b'ad sunt qui a', b'Ticket       ', b'-            ',
-            b'5        ', b'aliquip molli', b'Ticket       ', b'-            ',
-            b'6        ', b'nisi aliquip ', b'Ticket       ', b'-            ',
-            b'7        ', b'cillum quis n', b'Ticket       ', b'-            ',
-            b'8        ', b'proident est ', b'Ticket       ', b'-            ',
-            b'9        ', b'veniam ea eu ', b'Ticket       ', b'-            '
+            b'       1 ', b'Sample ticket', b'Incident     ', b'normal       ',
+            b'       2 ', b'velit eiusmod', b'Ticket       ', b'-            ',
+            b'       3 ', b'excepteur lab', b'Ticket       ', b'-            ',
+            b'       4 ', b'ad sunt qui a', b'Ticket       ', b'-            ',
+            b'       5 ', b'aliquip molli', b'Ticket       ', b'-            ',
+            b'       6 ', b'nisi aliquip ', b'Ticket       ', b'-            ',
+            b'       7 ', b'cillum quis n', b'Ticket       ', b'-            ',
+            b'       8 ', b'proident est ', b'Ticket       ', b'-            ',
+            b'       9 ', b'veniam ea eu ', b'Ticket       ', b'-            '
         ]
         # import pudb; pudb.set_trace()
         self.assertEqual(text_content, expected)
