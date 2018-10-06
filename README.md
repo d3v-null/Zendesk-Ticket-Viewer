@@ -46,6 +46,7 @@ zendesk_ticket_viewer \
  - [x] *testing* - write skeleton of testing suite
  - [x] *testing* - automate tests on multiple Python versions with Travis / Codeclimate
  - [x] Validate API connection
+ - [x] Implement logging
  - [ ] build curses CLI using npyscreen
  - [ ] *testing* - full coverage of functions called by CLI
  - [ ] *testing* - (time-dependent) full coverage of curses interface by injecting stdin of a subprocess

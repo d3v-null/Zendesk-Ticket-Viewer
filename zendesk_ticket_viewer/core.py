@@ -2,14 +2,18 @@
 
 from __future__ import print_function, unicode_literals
 
+import logging
 import sys
 
-import configargparse
 import requests
+
+import configargparse
 from zenpy import Zenpy
 
+from . import PKG_NAME
 from .exceptions import ZTVConfigException
-from .cli import ZTVApp
+
+PKG_LOGGER = logging.getLogger(PKG_NAME)
 
 
 def get_config(argv=None):
@@ -21,15 +25,56 @@ def get_config(argv=None):
     )
 
     parser.add('--config-file', '-c', is_config_file=True)
+
+    # Zendesk creds
     parser.add('--subdomain', env_var='ZENDESK_SUBDOMAIN')
     parser.add('--email', env_var='ZENDESK_EMAIL')
     parser.add('--password', env_var='ZENDESK_PASSWORD')
+
+    # Logging
+    parser.add('--log-file', default='.%s.log' % PKG_NAME)
+    parser.add('--verbosity', choices=[
+            'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'
+        ], default='WARNING'
+    )
 
     config = parser.parse_args(argv)
 
     print(parser.format_values())
 
     return config
+
+def exit_to_console(message):
+    """
+    Clean up program and exit, displaying a message
+    """
+    logging.critical(message)
+    quit()
+
+def setup_logging(config):
+    """
+    Configures the logging module.
+
+    File-based logging since the console is used for the TUI.
+
+    Args
+    ----
+        config (:obj:`configargparse.Namespace`): the config namespace which
+            must contain `verbosity` (str) and `log_file` (str) attributes
+    """
+
+    try:
+        PKG_LOGGER.setLevel(getattr(logging, config.verbosity))
+    except Exception as exc:
+        exit_to_console("invalid log level string: %s\n%s" % (
+            config.verbosity,
+            exc
+        ))
+    file_handler = logging.FileHandler(config.log_file)
+    file_handler.setFormatter(
+        logging.Formatter('%(asctime)s %(name)s %(levelname)s %(message)s')
+    )
+    PKG_LOGGER.addHandler(file_handler)
 
 def validate_connection(config, session=None):
     """
@@ -74,7 +119,7 @@ def validate_connection(config, session=None):
         )
     )
     if response.status_code != 200:
-        raise ZTVConfigException("Subdomain provided does not exist")
+        raise ZTVConfigException("Subdomain provided does not exist: %s" % config.subdomain)
 
 
 
@@ -82,8 +127,19 @@ def main():
     """Provide Core functionality of ticket viewer."""
     config = get_config()
 
+    setup_logging(config)
+
     # The Ticket Viewer should handle the API being unavailable
-    validate_connection(config)
+    try:
+        validate_connection(config)
+    except (
+        ZTVConfigException,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.ProtocolError
+    ) as exc:
+        exit_to_console("could not validate connection: %s" % exc)
+    finally:
+        PKG_LOGGER.info("Connection validated")
 
     zenpy_creds = dict([
         (zenpy_key, getattr(config, config_key)) for zenpy_key, config_key in [
@@ -94,6 +150,7 @@ def main():
     ])
 
     zenpy_client = Zenpy(**zenpy_creds)
+    # zenpy_client = None
 
     # hand over to cli
 
