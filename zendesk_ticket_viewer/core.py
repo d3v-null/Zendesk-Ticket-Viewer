@@ -11,7 +11,7 @@ import configargparse
 from zenpy import Zenpy
 
 from . import PKG_NAME
-# from .cli_urwid import ZTVApp
+from .cli_urwid import ZTVApp
 from .exceptions import ZTVConfigException
 
 PKG_LOGGER = logging.getLogger(PKG_NAME)
@@ -50,6 +50,7 @@ def exit_to_console(message):
     Clean up program and exit, displaying a message
     """
     logging.critical(message)
+    # TODO: maybe restore terminal settings?
     quit()
 
 def setup_logging(config):
@@ -155,14 +156,13 @@ def main():
 
     # hand over to cli
 
-    # ztv_app = ZTVApp(zenpy_client)
-    # ztv_app.run()
+    ticket_generator = zenpy_client.tickets()
+    PKG_LOGGER.debug(ticket_generator[:1][0].to_dict())
 
-    # ticket_generator = zenpy_client.tickets()
-    #
-    # first_ticket = ticket_generator[25:][0]
-    #
-    # print(first_ticket.to_dict())
+    ztv_app = ZTVApp(zenpy_client)
+    ztv_app.run()
+
+
 
 if __name__ == '__main__':
     main()

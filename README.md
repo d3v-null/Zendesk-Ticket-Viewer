@@ -47,6 +47,7 @@ zendesk_ticket_viewer \
  - [x] *testing* - automate tests on multiple Python versions with Travis / Codeclimate
  - [x] Validate API connection
  - [x] Implement logging
- - [ ] build curses CLI using npyscreen
- - [ ] *testing* - full coverage of functions called by CLI
- - [ ] *testing* - (time-dependent) full coverage of curses interface by injecting stdin of a subprocess
+ - [x] simple proof of concept curses CLI using ~~npyscreen~~ urwid
+ - [ ] modularize CLI code for easier testing
+ - [ ] *testing* - test coverage of functions called by CLI
+ - [ ] *testing* - (time-dependent) test coverage of curses interface by injecting stdin of a subprocess (probably need subprocess hacks https://coverage.readthedocs.io/en/latest/subprocess.html)
