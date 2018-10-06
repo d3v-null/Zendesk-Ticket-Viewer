@@ -39,17 +39,18 @@ class TestMainMocked(unittest.TestCase):
         self.assertEqual(config.password, dummy_password)
 
     @mock.patch('requests.Session')
-    def mock_validate_connection(self, subdomain, mock_status_code, session_mock):
+    def mock_validate_connection(self, subdomain, status_code, session_mock):
         """
-        Call `validate_connection` using a mocked session which always returns a given status_code.
+        Validate cinnection using a session with a mocked status_code.
 
         Args:
             subdomain (str): The subdomain which is being tested
-            mock_status_code (int): the status code which is always returned by
+            status_code (int): the status code which is always returned by
                 the mocked session
+            session_mock : Provided by the mock.patch decorator
         """
         mock_response = requests.Response()
-        mock_response.status_code = mock_status_code
+        mock_response.status_code = status_code
         session_mock.return_value = mock.MagicMock(get=mock.MagicMock(
             return_value=mock_response
         ))
@@ -57,7 +58,6 @@ class TestMainMocked(unittest.TestCase):
         config = configargparse.Namespace()
         config.subdomain = subdomain
         validate_connection(config, session)
-
 
     def test_validate_connection_good_subdomain(self):
         # No exceptions should be thrown

@@ -25,9 +25,9 @@ class TicketColumn(urwid.Frame):
     """A column within a table of ticket information."""
 
     def __init__(self, body, header=None, *args, **kwargs):
-        """Wrap `urwid.Frame.__init__` with extra metadata."""
+        """Wrap `urwid.Frame.__init__` with extra metadata and attributes."""
         # The key which this column is associated with
-        self.key = kwargs.pop('key')
+        self.key = kwargs.pop('key', None)
         if body is not None:
             body = urwid.AttrWrap(body, 'column')
         if header is not None:
@@ -113,7 +113,7 @@ class TicketList(urwid.Columns):
             while True:
                 if prefetch_index < len(self._ticket_cache):
                     break
-                self._ticket_cache.append(self.ticket_generator.next())
+                self._ticket_cache.append(next(self.ticket_generator))
         except StopIteration:
             pass
         return self._ticket_cache[offset:offset + limit]
