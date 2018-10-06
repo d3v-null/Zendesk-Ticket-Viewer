@@ -20,7 +20,9 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as readme_file:
     LONG_DESCRIPTION = readme_file.read()
 
 VERSION = "0.1"
-DESCRIPTION = "A simple CLI utility which views support tickets using the Zendesk API"
+DESCRIPTION = (
+    "A simple CLI utility which views support tickets using the Zendesk API"
+)
 
 
 setup(

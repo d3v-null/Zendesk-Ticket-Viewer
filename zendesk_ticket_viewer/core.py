@@ -35,8 +35,8 @@ def get_config(argv=None):
     # Logging
     parser.add('--log-file', default='.%s.log' % PKG_NAME)
     parser.add('--verbosity', choices=[
-            'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'
-        ], default='WARNING'
+        'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'
+    ], default='WARNING'
     )
 
     config = parser.parse_args(argv)
@@ -45,17 +45,17 @@ def get_config(argv=None):
 
     return config
 
+
 def exit_to_console(message):
-    """
-    Clean up program and exit, displaying a message
-    """
+    """Clean up program and exit, displaying a message."""
     logging.critical(message)
     # TODO: maybe restore terminal settings?
     quit()
 
+
 def setup_logging(config):
     """
-    Configures the logging module.
+    Configure the logging module.
 
     File-based logging since the console is used for the TUI.
 
@@ -64,7 +64,6 @@ def setup_logging(config):
         config (:obj:`configargparse.Namespace`): the config namespace which
             must contain `verbosity` (str) and `log_file` (str) attributes
     """
-
     try:
         PKG_LOGGER.setLevel(getattr(logging, config.verbosity))
     except Exception as exc:
@@ -77,6 +76,7 @@ def setup_logging(config):
         logging.Formatter('%(asctime)s %(name)s %(levelname)s %(message)s')
     )
     PKG_LOGGER.addHandler(file_handler)
+
 
 def validate_connection(config, session=None):
     """
@@ -121,8 +121,8 @@ def validate_connection(config, session=None):
         )
     )
     if response.status_code != 200:
-        raise ZTVConfigException("Subdomain provided does not exist: %s" % config.subdomain)
-
+        raise ZTVConfigException(
+            "Subdomain provided does not exist: %s" % config.subdomain)
 
 
 def main():
@@ -161,7 +161,6 @@ def main():
 
     ztv_app = ZTVApp(zenpy_client)
     ztv_app.run()
-
 
 
 if __name__ == '__main__':
