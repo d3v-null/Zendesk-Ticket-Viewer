@@ -151,35 +151,28 @@ class TicketList(urwid.Columns):
         visible_tickets = self.get_tickets(
             self.offset, maxcol - self.nonbody_overhead
         )
-        PKG_LOGGER.debug('-> visible tickets: {}'.format(len(visible_tickets)))
         index_highlighted = numpy.clip(
             self.index_highlighted,
             0,
             min(maxcol - self.nonbody_overhead, len(visible_tickets)) - 1
         )
-        PKG_LOGGER.debug('-> index highlighted: {}'.format(index_highlighted))
 
-        # TODO: populate frame body of each column with visible tickets
         for column, _ in self.contents:
             meta = self.column_meta.get(column.key, {})
             formatter = meta.get('formatter', str)
             cell_kwargs = {}
             if 'align' in meta:
                 cell_kwargs['align'] = meta['align']
-            cell_widgets = [
-                TicketCell(
-                    formatter(ticket.to_dict().get(column.key, '')),
-                    **cell_kwargs
-                )
-                for ticket in visible_tickets
-            ]
-            if column.key == '_selected':
-                selected_widget = TicketCell('>')
-            else:
-                selected_widget = cell_widgets[index_highlighted]
-            cell_widgets[index_highlighted] = urwid.AttrWrap(
-                selected_widget, 'important'
-            )
+            cell_widgets = []
+            for index, ticket in enumerate(visible_tickets):
+                cell_content = formatter(ticket.to_dict().get(column.key, ''))
+                if index == index_highlighted and column.key == '_selected':
+                    cell_content = '>'
+                cell_widget = TicketCell(cell_content, **cell_kwargs)
+                if index == index_highlighted:
+                    cell_widget = urwid.AttrWrap(cell_widget, 'important')
+                cell_widgets.append(cell_widget)
+
             # TODO: test for memory usage
 
             column.body = urwid.ListBox(urwid.SimpleListWalker(cell_widgets))
