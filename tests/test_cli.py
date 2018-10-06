@@ -94,7 +94,6 @@ class TestCliMocked(unittest.TestCase):
         return injected(client)
 
     def test_ticket_list_render(self):
-        return
         tickets_path = os.path.join(TEST_DATA_DIR, 'tickets.pkl')
         with open(tickets_path, 'rb') as tickets_file:
             # dumb hack to unpickle a file from python3

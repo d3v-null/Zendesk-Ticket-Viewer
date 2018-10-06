@@ -8,6 +8,7 @@ https://github.com/pypa/sampleproject
 
 from io import open
 from os import path
+import sys
 
 # Always prefer setuptools over distutils
 from setuptools import setup
@@ -24,8 +25,7 @@ DESCRIPTION = (
     "A simple CLI utility which views support tickets using the Zendesk API"
 )
 
-
-setup(
+SETUP_KWARGS = dict(
     name=PKG_NAME,
     version=VERSION,
     description=DESCRIPTION,
@@ -52,9 +52,7 @@ setup(
     setup_requires=["pytest-runner"],
     tests_require=[
         'pytest',
-        'coverage',
         'mock',
-        'pytest-cov',
     ],
     entry_points={  # Creates a console script entry point on install
         'console_scripts': [
@@ -62,3 +60,7 @@ setup(
         ],
     },
 )
+# if sys.version_info < (3, 0):
+#     SETUP_KWARGS['tests_require'].remove('coverage')
+
+setup(**SETUP_KWARGS)

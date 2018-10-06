@@ -1,7 +1,6 @@
 """Provide Command Line Interface for the package using the urwid library."""
 
 import logging
-from builtins import super
 from collections import OrderedDict
 
 import numpy
@@ -18,7 +17,8 @@ class TicketCell(urwid.Text):
     def __init__(self, *args, **kwargs):
         """Wrap `urwid.Text.__init__`, force clipping on cell elements."""
         kwargs['wrap'] = urwid.CLIP
-        super().__init__(*args, **kwargs)
+        # super().__init__(*args, **kwargs)
+        super(TicketCell, self).__init__(*args, **kwargs)
 
 
 class TicketColumn(urwid.Frame):
@@ -32,7 +32,9 @@ class TicketColumn(urwid.Frame):
             body = urwid.AttrWrap(body, 'column')
         if header is not None:
             header = urwid.AttrWrap(header, 'column_header')
-        super().__init__(body, header, *args, **kwargs)
+
+        # super().__init__(body, header, *args, **kwargs)
+        super(TicketColumn, self).__init__(body, header, *args, **kwargs)
 
 
 class TicketList(urwid.Columns):
@@ -68,7 +70,10 @@ class TicketList(urwid.Columns):
         self.offset = 0
         # Index of the highlighted element
         self.index_highlighted = 0
-        super().__init__(self.initial_widget_list(), *args, **kwargs)
+        # super().__init__(self.initial_widget_list(), *args, **kwargs)
+        super(TicketList, self).__init__(
+            self.initial_widget_list(), *args, **kwargs
+        )
         # Refresh widgets as if there was room for 1 row.
         self.refresh_widgets((None, self.header_size + 1))
 
@@ -175,8 +180,10 @@ class TicketList(urwid.Columns):
         """Wrap `urwid.Columns.render` and refresh scroll."""
         PKG_LOGGER.debug('rendering, size={} focus={}'.format(size, focus))
         self.scroll(size, 0)
-        if hasattr(super(), 'render'):
-            return super().render(size, focus)
+        # super_obj = super()
+        super_obj = super(TicketList, self)
+        if hasattr(super_obj, 'render'):
+            return super_obj.render(size, focus)
 
     def _action_open(self):
         """Open view of selected ticket."""
@@ -203,7 +210,8 @@ class TicketList(urwid.Columns):
             'page down': int(self.page_speed * (self.header_size - maxcol))
         }
         self.scroll(size, key_movements.get(key, 0))
-        return super().keypress(size, key)
+        # return super().keypress(size, key)
+        return super(TicketList, self).keypress(size, key)
 
 
 class ZTVApp(object):
