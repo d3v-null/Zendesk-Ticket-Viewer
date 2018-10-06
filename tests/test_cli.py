@@ -107,21 +107,21 @@ class TestCliMocked(unittest.TestCase):
 
         ticket_list = self.with_mocked_tickets(injected, tickets)
 
-        composite = ticket_list.render((48, 10), True)
+        composite = ticket_list.render((50, 10), True)
         text_content = list(
             text for _, _, text in itertools.chain(*composite.content())
         )
         expected = [
-            b'Ticket # ', b'Subject      ', b'Type         ', b'Priority     ',
-            b'       1 ', b'Sample ticket', b'Incident     ', b'normal       ',
-            b'       2 ', b'velit eiusmod', b'Ticket       ', b'-            ',
-            b'       3 ', b'excepteur lab', b'Ticket       ', b'-            ',
-            b'       4 ', b'ad sunt qui a', b'Ticket       ', b'-            ',
-            b'       5 ', b'aliquip molli', b'Ticket       ', b'-            ',
-            b'       6 ', b'nisi aliquip ', b'Ticket       ', b'-            ',
-            b'       7 ', b'cillum quis n', b'Ticket       ', b'-            ',
-            b'       8 ', b'proident est ', b'Ticket       ', b'-            ',
-            b'       9 ', b'veniam ea eu ', b'Ticket       ', b'-            '
+        	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
+        	b'>', b'       1 ', b'Sample ticket: Meet ', b'Incident  ', b'normal    ',
+        	b' ', b'       2 ', b'velit eiusmod repreh', b'Ticket    ', b'-         ',
+        	b' ', b'       3 ', b'excepteur laborum ex', b'Ticket    ', b'-         ',
+        	b' ', b'       4 ', b'ad sunt qui aute ull', b'Ticket    ', b'-         ',
+        	b' ', b'       5 ', b'aliquip mollit quis ', b'Ticket    ', b'-         ',
+        	b' ', b'       6 ', b'nisi aliquip ipsum n', b'Ticket    ', b'-         ',
+        	b' ', b'       7 ', b'cillum quis nostrud ', b'Ticket    ', b'-         ',
+        	b' ', b'       8 ', b'proident est nisi no', b'Ticket    ', b'-         ',
+        	b' ', b'       9 ', b'veniam ea eu minim a', b'Ticket    ', b'-         '
         ]
         # import pudb; pudb.set_trace()
         self.assertEqual(text_content, expected)

@@ -50,7 +50,9 @@ class TicketList(urwid.Columns):
             'align': 'right',
             'formatter': (lambda x: " {} ".format(x))
         }),
-        ('subject', {}),
+        ('subject', {
+            'sizing': ['weight', 2],
+        }),
         ('type', {
             'formatter': (lambda x: (x or 'ticket').title())
         }),
@@ -85,12 +87,18 @@ class TicketList(urwid.Columns):
         added to the widget list initially.
         """
         # TODO: add footer widget that shows paging progress ("X - Y of Z")
-        widget_list = []
+        widget_list = [
+            ('fixed', 1, TicketColumn(
+                header=urwid.Divider(),
+                body=urwid.Divider(),
+                key='_selected'
+            ))
+        ]
         for key, meta in self.column_meta.items():
             title = meta.get('title', key.title())
             column_widget = TicketColumn(
                 header=TicketCell(title),
-                body=urwid.ListBox(urwid.SimpleListWalker([])),
+                body=urwid.Divider(),
                 key=key
             )
             if 'sizing' in meta:
@@ -137,10 +145,7 @@ class TicketList(urwid.Columns):
             self.offset, maxcol - self.header_size)
         # TODO: populate frame body of each column with visible tickets
         for column, _ in self.contents:
-            if column.key == '_selected':
-                # TODO: put chevron at start of selected row
-                continue
-            meta = self.column_meta[column.key]
+            meta = self.column_meta.get(column.key, {})
             formatter = meta.get('formatter', str)
             cell_kwargs = {}
             if 'align' in meta:
@@ -152,8 +157,12 @@ class TicketList(urwid.Columns):
                 )
                 for ticket in visible_tickets
             ]
+            if column.key == '_selected':
+                selected_widget = TicketCell('>')
+            else:
+                selected_widget = cell_widgets[self.index_highlighted]
             cell_widgets[self.index_highlighted] = urwid.AttrWrap(
-                cell_widgets[self.index_highlighted], 'important'
+                selected_widget, 'important'
             )
             # TODO: test for memory usage
 
