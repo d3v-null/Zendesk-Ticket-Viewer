@@ -73,7 +73,7 @@ class TicketFieldHorizontal(urwid.Columns):
             (
                 'weight', 1, urwid.AttrWrap(
                     TicketCell(self.field_name, align=urwid.RIGHT),
-                    'important'
+                    'column_header'
                 )
             ),
             (
@@ -85,7 +85,39 @@ class TicketFieldHorizontal(urwid.Columns):
         ]
 
 
-class AppPageMixin(with_metaclass(urwid.MetaSuper)):
+class RefreshesWidgetsMixin(with_metaclass(urwid.MetaSuper)):
+    """Refresh Widgets whenever `render` or `keypress` is called."""
+
+    # A mapping of keys to actions (override this).
+    key_actions = {}
+
+    def refresh_widgets(self, size):
+        pass
+
+    def _mix_render(self, size, focus=False):
+        """Wrap super `render` to refresh widgets."""
+        PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
+            self.__class__.__name__, size, focus
+        ))
+        self.refresh_widgets(size)
+
+    def _mix_keypress(self, size, key):
+        """Wrap super `keypress` to refresh widgets."""
+        PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
+            self.__class__.__name__, size, repr(key)
+        ))
+
+        # TODO: replace logic with urwid.command_map ?
+
+        if key in self.key_actions:
+            getattr(self, '_action_{}'.format(self.key_actions[key]))(
+                size, key
+            )
+
+        self.refresh_widgets(size)
+
+
+class AppPageMixin(RefreshesWidgetsMixin):
     """Provide the interface for a page within an app."""
 
     _usage = ""
@@ -120,11 +152,6 @@ class BlankPage(urwid.ListBox, AppPageMixin):
         self.parent_app = parent_app
         self.__super.__init__(urwid.SimpleListWalker([]))
 
-    @AppPageMixin.page_title.getter
-    def page_title(self):
-        """Provide the title for this page."""
-        return ""
-
 
 class TicketListPage(urwid.Columns, AppPageMixin):
     """An app page which displays a table of ticket information."""
@@ -140,6 +167,15 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         u"F8 exits."
     )
     _title = "Ticket List"
+
+    key_actions = {
+        ' ': 'open',
+        'enter': 'open',
+        'up': 'scroll',
+        'down': 'scroll',
+        'page up': 'scroll',
+        'page down': 'scroll',
+    }
 
     def __init__(self, parent_app, *args, **kwargs):
         """Wrap super `__init__` with extra metadata."""
@@ -250,6 +286,8 @@ class TicketListPage(urwid.Columns, AppPageMixin):
 
         """
         PKG_LOGGER.debug('refreshing, size={}'.format(size))
+        self._action_scroll(size, None)
+
         _, maxcol = size
         visible_tickets = self.get_tickets(
             self.offset, maxcol - self.nonbody_overhead
@@ -269,17 +307,26 @@ class TicketListPage(urwid.Columns, AppPageMixin):
 
             column.body = urwid.ListBox(urwid.SimpleListWalker(cell_widgets))
 
-    def scroll(self, size, movement):
+    def _action_scroll(self, size, key=None):
         """
         Move highlighted index by `movement`, scroll `offset` at boundaries.
 
         Even if movement is 0 it is useful to refresh these values since the
         widget can be resized.
         """
-        PKG_LOGGER.debug('scrolling, size={} movement={}'.format(
-            size, movement
+        PKG_LOGGER.debug('scrolling, size={} key={}'.format(
+            size, key
         ))
         _, maxcol = size
+        # Map key value to scroll movement amount
+        page_jump = int(self.page_speed * (maxcol - self.nonbody_overhead))
+        key_movements = {
+            'up': -1,
+            'down': 1,
+            'page up': -page_jump,
+            'page down': page_jump
+        }
+        movement = key_movements.get(key, 0)
         # move highlighted index until boundaries
         can_move_to = numpy.clip(
             self.index_highlighted + movement,
@@ -297,18 +344,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
             len(self._ticket_cache) - 1
         )
 
-        self.refresh_widgets(size)
-
-    def render(self, size, focus=False):
-        """Wrap super `render` to refresh scroll."""
-        PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
-            self.__class__.__name__, size, focus
-        ))
-        self.scroll(size, 0)
-        if hasattr(self.__super, 'render'):
-            return self.__super.render(size, focus)
-
-    def _action_open(self):
+    def _action_open(self, *_):
         """Open view of selected ticket."""
         ticket = self._ticket_cache[self.offset + self.index_highlighted]
         PKG_LOGGER.debug('Actioning ticket id={}'.format(ticket))
@@ -319,28 +355,14 @@ class TicketListPage(urwid.Columns, AppPageMixin):
 
     def keypress(self, size, key):
         """Wrap super `keypress` and perform actions / scroll."""
-        PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
-            self.__class__.__name__, size, repr(key)
-        ))
-        _, maxcol = size
-        # TODO: replace logic with urwid.command_map
-        key_actions = {
-            ' ': 'open',
-            'enter': 'open',
-        }
-        if key in key_actions:
-            getattr(self, '_action_{}'.format(key_actions[key]))()
+        # Scroll regardless of if a move was made
+        self._mix_keypress(size, key)
+        self.__super.keypress(size, key)
 
-        # Map key value to scroll movement amount
-        page_jump = int(self.page_speed * (maxcol - self.nonbody_overhead))
-        key_movements = {
-            'up': -1,
-            'down': 1,
-            'page up': -page_jump,
-            'page down': page_jump
-        }
-        self.scroll(size, key_movements.get(key, 0))
-        return self.__super.keypress(size, key)
+    def render(self, size, focus=False):
+        """Wrap super `render`s to refresh scroll."""
+        self._mix_render(size, focus)
+        return self.__super.render(size, focus)
 
 
 class TicketViewPage(urwid.ListBox, AppPageMixin):
@@ -385,24 +407,19 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
             if wg_field_value.text != markup:
                 wg_field_value.set_text(markup)
 
+    def keypress(self, size, key):
+        """Wrap super `keypress`es."""
+        self._mix_keypress(size, key)
+        self.__super.keypress(size, key)
+
     def render(self, size, focus=False):
-        """Wrap super `render` to refresh widgets."""
-        PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
-            self.__class__.__name__, size, focus
-        ))
-        self.refresh_widgets(size)
-        if hasattr(self.__super, 'render'):
-            return self.__super.render(size, focus)
+        """Wrap super `render`s."""
+        self._mix_render(size, focus)
+        return self.__super.render(size, focus)
 
 
-class AppFrame(urwid.Frame):
-    """
-    Provide a Frame widget to house a multi-page app.
-
-    TODO:
-        - page stack (so back button works as expected)
-
-    """
+class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
+    """Provide a Frame widget to house a multi-page app."""
 
     column_meta = OrderedDict([
         ('id', {
@@ -421,6 +438,10 @@ class AppFrame(urwid.Frame):
             'formatter': (lambda x: x or '-')
         }),
     ])
+
+    key_actions = {
+        'esc': 'back',
+    }
 
     def __init__(self, title=None, client=None, *args, **kwargs):
         """Wrap super __init__ with extra meta."""
@@ -485,6 +506,7 @@ class AppFrame(urwid.Frame):
         """Check before refreshing header / footer status widgets."""
         # TODO: update the text on the header / footer widgets with the latest
         # info from the current page app.
+        self.current_page.refresh_widgets(size)
         current_page = self.current_page
         if self.body != current_page:
             self.body = current_page
@@ -496,36 +518,24 @@ class AppFrame(urwid.Frame):
         if self.footer.text != current_page.page_status:
             self.footer.text = current_page.page_status
 
-    def render(self, size, focus=False):
-        """Wrap super `render` to refresh widgets."""
-        PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
-            self.__class__.__name__, size, focus
-        ))
-        self.refresh_widgets(size)
-        if hasattr(self.__super, 'render'):
-            return self.__super.render(size, focus)
-
-    def _action_back(self):
+    def _action_back(self, *_):
         """Go back to the previous page."""
         if self.page_stack:
             self.page_stack = self.page_stack[:-1]
+        else:
+            raise urwid.ExitMainLoop()
 
     def keypress(self, size, key):
-        """Wrap super `keypress` to refresh widgets."""
+        """Wrap super `keypress`es and refresh body widget."""
         # always focussed on the body
-        self.body.keypress(size, key)
-        # TODO: respond to "back" keypress
+        # self.body.keypress(size, key)
+        self._mix_keypress(size, key)
+        self.__super.keypress(size, key)
 
-        key_actions = {
-            'esc': 'back',
-        }
-        if key in key_actions:
-            getattr(self, '_action_{}'.format(key_actions[key]))()
-
-        self.refresh_widgets(size)
-        PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
-            self.__class__.__name__, size, repr(key)
-        ))
+    def render(self, size, focus=False):
+        """Wrap super `render`s."""
+        self._mix_render(size, focus)
+        return self.__super.render(size, focus)
 
 
 class ZTVApp(object):
