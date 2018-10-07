@@ -198,6 +198,23 @@ class TicketListPage(urwid.Columns, AppPageMixin):
             pass
         return self._ticket_cache[offset:offset + limit]
 
+    def _get_cell_widgets(self, key, visible_tickets, index_highlighted):
+        meta = self.column_meta.get(key, {})
+        formatter = meta.get('formatter', str)
+        cell_kwargs = {
+            'align': meta.get('align', urwid.LEFT)
+        }
+        cell_widgets = []
+        for index, ticket in enumerate(visible_tickets):
+            cell_kwargs['markup'] = formatter(ticket.to_dict().get(key, ''))
+            if key == '_selected' and index == index_highlighted:
+                cell_kwargs['markup'] = '>'
+            cell_widget = TicketCell(**cell_kwargs)
+            if index == index_highlighted:
+                cell_widget = urwid.AttrWrap(cell_widget, 'important')
+            cell_widgets.append(cell_widget)
+        return cell_widgets
+
     def refresh_widgets(self, size):
         """
         Populate frame body of each column with visible tickets.
@@ -219,20 +236,9 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         )
 
         for column, _ in self.contents:
-            meta = self.column_meta.get(column.key, {})
-            formatter = meta.get('formatter', str)
-            cell_kwargs = {}
-            if 'align' in meta:
-                cell_kwargs['align'] = meta['align']
-            cell_widgets = []
-            for index, ticket in enumerate(visible_tickets):
-                cell_content = formatter(ticket.to_dict().get(column.key, ''))
-                if index == index_highlighted and column.key == '_selected':
-                    cell_content = '>'
-                cell_widget = TicketCell(cell_content, **cell_kwargs)
-                if index == index_highlighted:
-                    cell_widget = urwid.AttrWrap(cell_widget, 'important')
-                cell_widgets.append(cell_widget)
+            cell_widgets = self._get_cell_widgets(
+                column.key, visible_tickets, index_highlighted
+            )
 
             # TODO: test for memory leaks
 
