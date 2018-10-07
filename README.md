@@ -66,7 +66,7 @@ zendesk_ticket_viewer \
 <img src="screenshots/error.png?raw=true">
 
 ## Emoji Support
-<img src="screenshots/emoji.png?raw=true">
+<img src="screenshots/emoji_support.png?raw=true">
 
 # Roadmap
  - [x] make a barebones module which uses one of these clients https://developer.zendesk.com/rest_api/docs/api-clients/python
