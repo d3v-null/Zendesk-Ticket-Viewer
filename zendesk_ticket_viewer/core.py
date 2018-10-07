@@ -7,6 +7,7 @@ TODO:
 
 from __future__ import print_function, unicode_literals
 
+import functools
 import json
 import logging
 import pickle
@@ -21,6 +22,7 @@ from zenpy import Zenpy
 from . import PKG_NAME
 from .cli_urwid import ZTVApp
 from .exceptions import ZTVConfigException
+from .util import wrap_connection_error
 
 PKG_LOGGER = logging.getLogger(PKG_NAME)
 
@@ -53,11 +55,14 @@ def get_config(argv=None):
         action='store_true'
     )
     group.add(
-        '--unpickle-tickets', help=configargparse.SUPPRESS,
+        '--unpickle-tickets', help=(
+            "Load a previously saved pickle file for testing without creds "
+            "or internet"
+        ),
         action='store_true'
     )
     parser.add(
-        '--pickle-path', help=configargparse.SUPPRESS,
+        '--pickle-path', help="Path to pickle file", metavar="PATH",
         default='tests/test_data/tickets.pkl'
     )
 
@@ -66,11 +71,24 @@ def get_config(argv=None):
     return config
 
 
-def exit_to_console(message):
+def exit_to_console(message=None, exc=None):
     """Clean up program and exit, displaying a message."""
+    message = "Failure in %s" % message if message else "Fatal Error"
     logging.critical(message)
+    if exc:
+        logging.critical(exc)
+
+    padding = 1
+    lines = []
+    for _ in range(2):
+        lines.insert(0, "*" * (2 * padding + len(message) + 2))
+    for _ in range(padding * 2):
+        lines.insert(1, "*%s*" % (" " * (2 * padding + len(message))))
+    lines.insert(padding + 1, "*" + " " * padding + message + " " * padding + "*")
+    print( '\n'.join(lines) )
+    # TODO: if exc is type excption, do stack trace
     # TODO: maybe restore terminal settings?
-    quit()
+    exit()
 
 
 def setup_logging(config):
@@ -192,16 +210,16 @@ def main():
     setup_logging(config)
 
     # The Ticket Viewer should handle the API being unavailable
-    try:
-        validate_connection(config)
-    except (
-        ZTVConfigException,
-        requests.exceptions.ConnectionError,
-        requests.exceptions.ProtocolError
-    ) as exc:
-        exit_to_console("could not validate connection: %s" % exc)
-    finally:
-        PKG_LOGGER.info("Connection validated")
+    wrap_connection_error(
+        functools.partial(validate_connection, config),
+        attempting="Validate connection",
+        on_fail=functools.partial(
+            exit_to_console
+        ),
+        on_success=functools.partial(
+            PKG_LOGGER.info, "Connection validated"
+        )
+    )
 
     # hand over to cli
 

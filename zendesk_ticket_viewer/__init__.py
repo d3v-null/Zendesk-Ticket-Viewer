@@ -1,3 +1,5 @@
 import os
 
-PKG_NAME = os.path.basename(os.path.dirname(__file__))
+
+DIR_NAME = os.path.dirname(__file__)
+PKG_NAME = os.path.basename(DIR_NAME)

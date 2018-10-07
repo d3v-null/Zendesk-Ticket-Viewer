@@ -5,6 +5,7 @@ TODO: split this module into cli.widgets, cli.pages, cli.app to fix
     https://github.com/derwentx/Zendesk-Ticket-Viewer/issues/2
 """
 
+import functools
 import logging
 from collections import OrderedDict
 
@@ -16,6 +17,7 @@ import zenpy
 from urwid.compat import with_metaclass
 
 from . import PKG_NAME
+from .util import wrap_connection_error
 
 PKG_LOGGER = logging.getLogger(PKG_NAME)
 
@@ -82,14 +84,18 @@ class TicketFieldHorizontal(urwid.Columns):
             (
                 'weight', 2, urwid.AttrWrap(
                     TicketCell(self.field_value or '', ),
-                    'editbx'
+                    'column'
                 )
             )
         ]
 
 
-class RefreshesWidgetsMixin(with_metaclass(urwid.MetaSuper)):
-    """Refresh Widgets whenever `render` or `keypress` is called."""
+class AppElementMixin(with_metaclass(urwid.MetaSuper)):
+    """
+    Functionality common to app elements.
+
+    Override `refresh_widgets`, runs whenever `render` or `keypress` is called.
+    """
 
     # A mapping of keys to actions (override this).
     key_actions = {}
@@ -119,8 +125,23 @@ class RefreshesWidgetsMixin(with_metaclass(urwid.MetaSuper)):
 
         self.refresh_widgets(size)
 
+    def modal_fatal_error(self, message=None, exc=None):
+        parent_app = self.parent_app if hasattr(self, 'parent_app') else self
+        if 'ERROR' not in parent_app.pages:
+            parent_app.add_page('ERROR', ErrorPage)
+        if message:
+            parent_app.pages['ERROR'].page_title = message
 
-class AppPageMixin(RefreshesWidgetsMixin):
+        details = []
+        if exc:
+            details.insert(0, str(exc))
+        details.append("press ctrl-c to exit")
+        parent_app.pages['ERROR'].error_details = "\n\n".join(details)
+        parent_app.set_page('ERROR')
+
+        message = message or "Fatal Error"
+
+class AppPageMixin(AppElementMixin):
     """Provide the interface for a page within an app."""
 
     _usage = ""
@@ -205,18 +226,28 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         """Try and get generator of tickets from API otherwise use cache."""
         if self._ticket_generator is None:
             client = self.parent_app.client
-            try:
-                self._ticket_generator = client.tickets()
-            except (
-                zenpy.lib.exception.APIException,
-                requests.exceptions.ConnectionError
-            ):
-                # if we are in offline mode
-                cache = client.tickets.cache.mapping['ticket'].cache
-                if cache.__class__.__name__ != 'TTLCache':
-                    self._ticket_generator = cache.values().__iter__()
+            cache = client.tickets.cache.mapping['ticket'].cache
+            # if we are in offline mode
+            if cache.__class__.__name__ != 'TTLCache':
+                self._ticket_generator = cache.values().__iter__()
+                return self._ticket_generator
+
+            def injected():
+                self._ticket_generator = client.tickets(timeout=10)
+            wrap_connection_error(
+                injected, attempting="Connecting to API",
+                on_fail=functools.partial(self.modal_fatal_error),
+            )
 
         return self._ticket_generator
+
+    @property
+    def next_ticket(self):
+        return wrap_connection_error(
+            injected=functools.partial(next, self.ticket_generator),
+            attempting="Making an API request",
+            on_fail=functools.partial(self.modal_fatal_error),
+        )
 
     @property
     def nonbody_overhead(self):
@@ -246,6 +277,8 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         ]
         # Other widget columns show ticket data
         for key, meta in self.parent_app.column_meta.items():
+            if 'list_view' in meta and not meta['list_view']:
+                continue
             title = meta.get('title', key.title())
             column_widget = TicketColumn(
                 header=TicketCell(title),
@@ -275,7 +308,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
             while True:
                 if prefetch_index < len(self._ticket_cache):
                     break
-                self._ticket_cache.append(next(self.ticket_generator))
+                self._ticket_cache.append(self.next_ticket)
         except StopIteration:
             pass
         return self._ticket_cache[offset:offset + limit]
@@ -390,7 +423,7 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
     """An app page which displays a single ticket's information."""
 
     _usage = (
-        u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
+        u"ESC is back. "
         u"F8 exits."
     )
     _title = "Ticket View"
@@ -439,7 +472,53 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
         return self.__super.render(size, focus)
 
 
-class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
+class ErrorPage(urwid.Overlay, AppPageMixin):
+    """An app page which displays an error."""
+    _usage = (
+        u"F8 exits."
+    )
+
+    def __init__(self, parent_app, *args, **kwargs):
+        """Wrap super `__init__` with extra metadata."""
+        self.parent_app = parent_app
+        self._title = kwargs.get('error_message', 'Error')
+        self.error_details = kwargs.get('error_details', 'An Error occured.')
+
+        # popup = urwid.Text(self.error_message)
+        self.__super.__init__(
+            urwid.AttrWrap(
+                urwid.LineBox(urwid.ListBox(urwid.SimpleFocusListWalker([
+                    urwid.Text(self.error_details, align='center')
+                ]))),
+                'header'
+            ),
+            self.parent_app.current_page,
+            align='center', width=('relative', 80),
+            valign='middle', height=('relative', 80),
+            min_width=24, min_height=8,
+            left=1,
+            right=1,
+            top=1,
+            bottom=1
+        )
+
+    @AppPageMixin.page_title.setter
+    def page_title(self, value):
+        self._title = value
+
+    def refresh_widgets(self, *_):
+        _, (wg_top, _) = self.contents
+        wg_details = wg_top.original_widget.original_widget.body[0]
+        if wg_details.text != self.error_details:
+            wg_details.set_text(self.error_details)
+
+    def render(self, size, focus=False):
+        """Wrap super and mixin `render`s."""
+        self._mix_render(size, focus)
+        return self.__super.render(size, focus)
+
+
+class AppFrame(urwid.Frame, AppElementMixin):
     """Provide a Frame widget to house a multi-page app."""
 
     column_meta = OrderedDict([
@@ -447,10 +526,18 @@ class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
             'title': 'Ticket #',
             'sizing': ['fixed', 9],
             'align': 'right',
-            'formatter': (lambda x: " {} ".format(x))
+            'formatter': (lambda x: "{} ".format(x))
         }),
         ('subject', {
             'sizing': ['weight', 2],
+        }),
+        ('assignee_id', {
+            'title': 'Assignee',
+            'list_view': False,
+        }),
+        ('tags', {
+            'list_view': False,
+            'formatter': (lambda x: ', '.join(x))
         }),
         ('type', {
             'formatter': (lambda x: (x or 'ticket').title())
@@ -458,10 +545,12 @@ class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
         ('priority', {
             'formatter': (lambda x: x or '-')
         }),
+        # TODO: conversations
     ])
 
     key_actions = {
         'esc': 'back',
+        'e': 'error',
     }
 
     def __init__(self, title=None, client=None, *args, **kwargs):
@@ -475,7 +564,6 @@ class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
         self.page_stack = []
         # API Client,
         self.client = client
-        # TODO: figure outo what to pass to super Frame __init__
         self.__super.__init__(
             header=self.initial_header_widget(),
             body=self.current_page,
@@ -489,6 +577,14 @@ class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
         page_id = "BLANK"
         if self.page_stack:
             page_id = self.page_stack[-1]
+        return self.pages[page_id]
+
+    @property
+    def previous_page(self):
+        """Return the current page of the app."""
+        page_id = "BLANK"
+        if len(self.page_stack) > 1:
+            page_id = self.page_stack[-2]
         return self.pages[page_id]
 
     def initial_header_widget(self):
@@ -545,6 +641,10 @@ class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
             self.page_stack = self.page_stack[:-1]
         else:
             raise urwid.ExitMainLoop()
+
+    def _action_error(self, *_):
+        """Throw an error (for testing, remove later)."""
+        self.modal_fatal_error("blah", "details")
 
     def keypress(self, size, key):
         """Wrap super `keypress`es and refresh body widget."""
