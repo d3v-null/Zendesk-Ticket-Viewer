@@ -49,7 +49,9 @@ SETUP_KWARGS = dict(
         'urwid',
         'numpy',
     ],
-    setup_requires=["pytest-runner"],
+    setup_requires=[
+        "pytest-runner"
+    ],
     tests_require=[
         'pytest',
         'mock',

@@ -45,6 +45,15 @@ zendesk_ticket_viewer \
     --password '{password}'
 ```
 
+If you want to use the UI without an internet connection or login, you can load
+a previously store session.
+
+```bash
+zendesk_ticket_viewer \
+    --unpickle-tickets \
+    --pickle-path 'tests/test_data/tickets.pkl'
+```
+
 # Roadmap
  - [x] make a barebones module which uses one of these clients https://developer.zendesk.com/rest_api/docs/api-clients/python
  - [x] *testing* - write skeleton of testing suite
@@ -53,5 +62,7 @@ zendesk_ticket_viewer \
  - [x] Implement logging
  - [x] simple proof of concept curses CLI using ~~npyscreen~~ urwid
  - [x] modularize multi-screen CLI code for easier testing
- - [ ] *testing* - test coverage of functions called by CLI
- - [ ] *testing* - (time-dependent) test coverage of curses interface by injecting stdin of a subprocess (probably need subprocess hacks https://coverage.readthedocs.io/en/latest/subprocess.html)
+ - [x] beautiful error handing
+ - [ ] welcome screen
+ - [ ] *testing* - test coverage of CLI
+ - [ ] *testing* - test on WSL

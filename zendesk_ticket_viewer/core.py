@@ -84,8 +84,11 @@ def exit_to_console(message=None, exc=None):
         lines.insert(0, "*" * (2 * padding + len(message) + 2))
     for _ in range(padding * 2):
         lines.insert(1, "*%s*" % (" " * (2 * padding + len(message))))
-    lines.insert(padding + 1, "*" + " " * padding + message + " " * padding + "*")
-    print( '\n'.join(lines) )
+    lines.insert(
+        padding + 1,
+        "*" + " " * padding + message + " " * padding + "*"
+    )
+    print('\n'.join(lines))
     # TODO: if exc is type excption, do stack trace
     # TODO: maybe restore terminal settings?
     exit()
@@ -178,9 +181,21 @@ def get_client(config):
         ]
     ])
 
-    zenpy_client = Zenpy(**zenpy_args)
+    unpickle_tickets = getattr(config, 'unpickle_tickets', None)
 
-    if getattr(config, 'unpickle_tickets', None):
+    try:
+        zenpy_client = Zenpy(**zenpy_args)
+    except zenpy.lib.exception.ZenpyException as exc:
+        if unpickle_tickets:
+            zenpy_args['password'] = zenpy_args['password'] or 'dummy_pass'
+            zenpy_args['subdomain'] = zenpy_args['subdomain'] or 'dummy_subdomain'
+            zenpy_args['email'] = zenpy_args['email'] or 'dummy_email'
+            zenpy_client = Zenpy(**zenpy_args)
+        else:
+            raise exc
+
+
+    if unpickle_tickets:
         # Chose LRUCache because TTL cache deletes things
         cache = zenpy.ZenpyCache('LRUCache', maxsize=10000)
         # TODO: fill zenpy_client.tickets.cache with data from file
