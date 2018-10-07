@@ -68,6 +68,7 @@ class TicketFieldHorizontal(urwid.Columns):
         )
 
     def initial_widget_list(self):
+        """Initialize child widgets without no knowlodge of contents."""
         return [
             (
                 'weight', 1, urwid.AttrWrap(
@@ -87,20 +88,23 @@ class TicketFieldHorizontal(urwid.Columns):
 class AppPageMixin(with_metaclass(urwid.MetaSuper)):
     """Provide the interface for a page within an app."""
 
+    _usage = ""
+    _title = ""
+
     def __init__(self):
-        """wrap super __init__ as per urwid MetaClass spec."""
+        """Wrap super __init__ as per `urwid.MetaClass` spec."""
         assert self.parent_app
         self.__super.__init__()
 
     @property
     def page_usage(self):
         """Provide the usage message for this page."""
-        raise NotImplementedError()
+        return self._usage
 
     @property
     def page_title(self):
         """Provide the title for this page."""
-        raise NotImplementedError()
+        return self._title
 
     @property
     def page_status(self):
@@ -116,12 +120,9 @@ class BlankPage(urwid.ListBox, AppPageMixin):
         self.parent_app = parent_app
         self.__super.__init__(urwid.SimpleListWalker([]))
 
-    @AppPageMixin.page_usage.getter
-    def page_usage(self):
-        return ""
-
     @AppPageMixin.page_title.getter
     def page_title(self):
+        """Provide the title for this page."""
         return ""
 
 
@@ -133,6 +134,12 @@ class TicketListPage(urwid.Columns, AppPageMixin):
     footer_size = 0
     # how quickly the scrolls when paging
     page_speed = 1
+    _usage = (
+        u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
+        u"SPACE / ENTER selects. "
+        u"F8 exits."
+    )
+    _title = "Ticket List"
 
     def __init__(self, parent_app, *args, **kwargs):
         """Wrap super `__init__` with extra metadata."""
@@ -159,20 +166,9 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         """Rows taken up by the header and footer."""
         return self.header_size + self.footer_size
 
-    @AppPageMixin.page_usage.getter
-    def page_usage(self):
-        return (
-            u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
-            u"SPACE / ENTER selects. "
-            u"F8 exits."
-        )
-
-    @AppPageMixin.page_title.getter
-    def page_title(self):
-        return "Ticket List"
-
     @AppPageMixin.page_status.getter
     def page_status(self):
+        """Provide the status message for this page."""
         # TODO: paging progress ("X - Y of Z")
         return ""
 
@@ -350,6 +346,12 @@ class TicketListPage(urwid.Columns, AppPageMixin):
 class TicketViewPage(urwid.ListBox, AppPageMixin):
     """An app page which displays a single ticket's information."""
 
+    _usage = (
+        u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
+        u"F8 exits."
+    )
+    _title = "Ticket View"
+
     def __init__(self, parent_app, *args, **kwargs):
         """Wrap super `__init__` with extra metadata."""
         self.parent_app = parent_app
@@ -358,18 +360,8 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
             self.initial_row_widgets()
         ))
 
-    @AppPageMixin.page_usage.getter
-    def page_usage(self):
-        return (
-            u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
-            u"F8 exits."
-        )
-
-    @AppPageMixin.page_title.getter
-    def page_title(self):
-        return "Ticket View"
-
     def initial_row_widgets(self):
+        """Initialize the row widgets to be updated later."""
         widget_list = []
 
         for key, meta in self.parent_app.column_meta.items():
@@ -380,6 +372,7 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
         return widget_list
 
     def refresh_widgets(self, size):
+        """Refresh the row widgets."""
         ticket_dict = {}
         if self.current_ticket:
             ticket_dict = self.current_ticket.to_dict()
@@ -392,8 +385,6 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
             if wg_field_value.text != markup:
                 wg_field_value.set_text(markup)
 
-
-
     def render(self, size, focus=False):
         """Wrap super `render` to refresh widgets."""
         PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
@@ -402,7 +393,6 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
         self.refresh_widgets(size)
         if hasattr(self.__super, 'render'):
             return self.__super.render(size, focus)
-
 
 
 class AppFrame(urwid.Frame):
@@ -433,7 +423,7 @@ class AppFrame(urwid.Frame):
     ])
 
     def __init__(self, title=None, client=None, *args, **kwargs):
-        """Wrap super __init__ with extra meta"""
+        """Wrap super __init__ with extra meta."""
         self.title = title or ''
         # Mapping of pageIDs to widgets
         self.pages = {
@@ -460,7 +450,7 @@ class AppFrame(urwid.Frame):
         return self.pages[page_id]
 
     def initial_header_widget(self):
-        """Create the initial header widget to be updated later."""
+        """Initialize the header widget to be updated later."""
         return urwid.AttrWrap(
             urwid.Columns([
                 urwid.Text(self.title, align='left'),
