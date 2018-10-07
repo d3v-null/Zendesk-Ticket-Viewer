@@ -1,4 +1,9 @@
-"""Provide core functionality to zendesk_ticket_viewer module."""
+"""
+Provide core functionality to zendesk_ticket_viewer module.
+
+TODO:
+    - method to restore pickled tickets into blank api object cache
+"""
 
 from __future__ import print_function, unicode_literals
 

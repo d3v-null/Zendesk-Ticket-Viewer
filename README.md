@@ -52,6 +52,6 @@ zendesk_ticket_viewer \
  - [x] Validate API connection
  - [x] Implement logging
  - [x] simple proof of concept curses CLI using ~~npyscreen~~ urwid
- - [ ] modularize CLI code for easier testing
+ - [x] modularize multi-screen CLI code for easier testing
  - [ ] *testing* - test coverage of functions called by CLI
  - [ ] *testing* - (time-dependent) test coverage of curses interface by injecting stdin of a subprocess (probably need subprocess hacks https://coverage.readthedocs.io/en/latest/subprocess.html)

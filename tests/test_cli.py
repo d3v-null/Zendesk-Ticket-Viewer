@@ -23,12 +23,6 @@ if True:
     add_move(MovedModule('mock', 'mock', 'unittest.mock'))
     from six.moves import mock
 
-
-class FakeApp(object):
-    """A fake app containing a reference to a client for testing."""
-    def __init__(self, client):
-        self.client = client
-
 class TestCliMocked(unittest.TestCase):
     expected_start_content = [
     	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
@@ -134,7 +128,7 @@ class TestCliMocked(unittest.TestCase):
         Test that a blank app page satisfies the AppPage interface.
         """
         def injected(client):
-            return BlankPage(FakeApp(client))
+            return BlankPage(AppFrame(client=client))
 
         page = self.with_mocked_tickets(injected, self.tickets)
         self.assertEqual(page.page_title, "")
@@ -146,7 +140,7 @@ class TestCliMocked(unittest.TestCase):
         Test that a ticket list app page satisfies the AppPage interface.
         """
         def injected(client):
-            return TicketListPage(FakeApp(client))
+            return TicketListPage(AppFrame(client=client))
 
         page = self.with_mocked_tickets(injected, self.tickets)
         self.assertEqual(page.page_title, "Ticket List")
@@ -156,7 +150,7 @@ class TestCliMocked(unittest.TestCase):
 
     def test_ticket_list_render(self):
         def injected(client):
-            return TicketListPage(FakeApp(client))
+            return TicketListPage(AppFrame(client=client))
 
         ticket_list = self.with_mocked_tickets(injected, self.tickets)
 
@@ -174,7 +168,7 @@ class TestCliMocked(unittest.TestCase):
         highlighted_index.
         """
         def injected(client):
-            return TicketListPage(FakeApp(client))
+            return TicketListPage(AppFrame(client=client))
 
         screen_size = (50, 10)
 
@@ -202,7 +196,7 @@ class TestCliMocked(unittest.TestCase):
         than the previous page, causing selected_index to fall off visible tickets.
         """
         def injected(client):
-            return TicketListPage(FakeApp(client))
+            return TicketListPage(AppFrame(client=client))
 
         screen_size = (50, 38)
 
@@ -218,7 +212,7 @@ class TestCliMocked(unittest.TestCase):
         bottom.
         """
         def injected(client):
-            return TicketListPage(FakeApp(client))
+            return TicketListPage(AppFrame(client=client))
 
         screen_size = (50, 38)
 

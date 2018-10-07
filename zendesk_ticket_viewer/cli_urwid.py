@@ -1,4 +1,9 @@
-"""Provide Command Line Interface for the package using the urwid library."""
+"""
+Provide Command Line Interface for the package using the urwid library.
+
+TODO: split this module into cli.widgets, cli.pages, cli.app to fix
+    https://github.com/derwentx/Zendesk-Ticket-Viewer/issues/2
+"""
 
 import logging
 from collections import OrderedDict
@@ -13,19 +18,25 @@ PKG_LOGGER = logging.getLogger(PKG_NAME)
 
 
 class TicketCell(urwid.Text):
-    """A cell within a table of ticket information."""
+    """A widget forming a cell within a table of ticket information."""
 
     def __init__(self, *args, **kwargs):
-        """Wrap `urwid.Text.__init__`, force clipping on cell elements."""
+        """Wrap super `__init__`, force clipping on cell elements."""
         kwargs['wrap'] = urwid.CLIP
         self.__super.__init__(*args, **kwargs)
 
 
 class TicketColumn(urwid.Frame):
-    """A column within a table of ticket information."""
+    """A widget forming a column within a table of ticket information."""
 
     def __init__(self, body, header=None, *args, **kwargs):
-        """Wrap `urwid.Frame.__init__` with extra metadata and attributes."""
+        """
+        Wrap super `__init__` with extra metadata and attributes.
+
+        Args:
+        ----
+            key (:obj:`str`): The key into ticket data this column represents
+        """
         # The key which this column is associated with
         self.key = kwargs.pop('key', None)
         if body is not None:
@@ -34,6 +45,43 @@ class TicketColumn(urwid.Frame):
             header = urwid.AttrWrap(header, 'column_header')
 
         self.__super.__init__(body, header, *args, **kwargs)
+
+
+class TicketFieldHorizontal(urwid.Columns):
+    """A widget which displays a ticket field title and contents."""
+
+    def __init__(self, field_name, field_value=None, *args, **kwargs):
+        """
+        Wrap super `__init__` with extra metadata and attributes.
+
+        Args:
+        ----
+            key (:obj:`str`): The key into ticket data this field represents
+        """
+        self.key = kwargs.pop('key', None)
+        self.field_name = field_name
+        self.field_value = field_value
+        kwargs['dividechars'] = 1
+        self.__super.__init__(
+            self.initial_widget_list(),
+            *args, **kwargs
+        )
+
+    def initial_widget_list(self):
+        return [
+            (
+                'weight', 1, urwid.AttrWrap(
+                    TicketCell(self.field_name, align=urwid.RIGHT),
+                    'important'
+                )
+            ),
+            (
+                'weight', 2, urwid.AttrWrap(
+                    TicketCell(self.field_value or '', ),
+                    'editbx'
+                )
+            )
+        ]
 
 
 class AppPageMixin(with_metaclass(urwid.MetaSuper)):
@@ -64,6 +112,7 @@ class BlankPage(urwid.ListBox, AppPageMixin):
     """A blank app page."""
 
     def __init__(self, parent_app, *args, **kwargs):
+        """Wrap super `__init__` with extra metadata."""
         self.parent_app = parent_app
         self.__super.__init__(urwid.SimpleListWalker([]))
 
@@ -85,26 +134,8 @@ class TicketListPage(urwid.Columns, AppPageMixin):
     # how quickly the scrolls when paging
     page_speed = 1
 
-    column_meta = OrderedDict([
-        ('id', {
-            'title': 'Ticket #',
-            'sizing': ['fixed', 9],
-            'align': 'right',
-            'formatter': (lambda x: " {} ".format(x))
-        }),
-        ('subject', {
-            'sizing': ['weight', 2],
-        }),
-        ('type', {
-            'formatter': (lambda x: (x or 'ticket').title())
-        }),
-        ('priority', {
-            'formatter': (lambda x: x or '-')
-        }),
-    ])
-
     def __init__(self, parent_app, *args, **kwargs):
-        """Wrap super `__init__`s with extra metadata."""
+        """Wrap super `__init__` with extra metadata."""
         # Cache access to generator to avoid api calls
         self._ticket_cache = []
         # Offset into the generator of the first visible element
@@ -119,8 +150,8 @@ class TicketListPage(urwid.Columns, AppPageMixin):
             self.initial_column_widgets(), *args, **kwargs
         )
 
-        # Refresh widgets as if there was room for 1 row.
-        # TODO: is this necessary?
+        # Refresh widgets as if there was room for 1 row (otherwise blank).
+        # HACK: find a more elegant solution for this
         self.refresh_widgets((None, self.nonbody_overhead + 1))
 
     @property
@@ -161,17 +192,15 @@ class TicketListPage(urwid.Columns, AppPageMixin):
             ))
         ]
         # Other widget columns show ticket data
-        for key, meta in self.column_meta.items():
+        for key, meta in self.parent_app.column_meta.items():
             title = meta.get('title', key.title())
             column_widget = TicketColumn(
                 header=TicketCell(title),
-                body=urwid.Divider(),
+                body=urwid.ListBox(urwid.SimpleListWalker([])),
                 key=key
             )
             if 'sizing' in meta:
-                column_widget = tuple(
-                    meta['sizing'] + [column_widget]
-                )
+                column_widget = tuple(meta['sizing'] + [column_widget])
             widget_list.append(column_widget)
 
         return widget_list
@@ -199,7 +228,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         return self._ticket_cache[offset:offset + limit]
 
     def _get_cell_widgets(self, key, visible_tickets, index_highlighted):
-        meta = self.column_meta.get(key, {})
+        meta = self.parent_app.column_meta.get(key, {})
         formatter = meta.get('formatter', str)
         cell_kwargs = {
             'align': meta.get('align', urwid.LEFT)
@@ -285,8 +314,12 @@ class TicketListPage(urwid.Columns, AppPageMixin):
 
     def _action_open(self):
         """Open view of selected ticket."""
-        ticket_id = self._ticket_cache[self.offset + self.index_highlighted]
-        PKG_LOGGER.debug('Actioning ticket id={}'.format(ticket_id))
+        ticket = self._ticket_cache[self.offset + self.index_highlighted]
+        PKG_LOGGER.debug('Actioning ticket id={}'.format(ticket))
+        if 'TICKET_VIEW' not in self.parent_app.pages:
+            self.parent_app.add_page(TicketViewPage)
+        self.parent_app.pages['TICKET_VIEW'].current_ticket = ticket
+        self.parent_app.set_page('TICKET_VIEW')
 
     def keypress(self, size, key):
         """Wrap super `keypress` and perform actions / scroll."""
@@ -314,6 +347,64 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         return self.__super.keypress(size, key)
 
 
+class TicketViewPage(urwid.ListBox, AppPageMixin):
+    """An app page which displays a single ticket's information."""
+
+    def __init__(self, parent_app, *args, **kwargs):
+        """Wrap super `__init__` with extra metadata."""
+        self.parent_app = parent_app
+        self.current_ticket = None
+        self.__super.__init__(urwid.SimpleListWalker(
+            self.initial_row_widgets()
+        ))
+
+    @AppPageMixin.page_usage.getter
+    def page_usage(self):
+        return (
+            u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
+            u"F8 exits."
+        )
+
+    @AppPageMixin.page_title.getter
+    def page_title(self):
+        return "Ticket View"
+
+    def initial_row_widgets(self):
+        widget_list = []
+
+        for key, meta in self.parent_app.column_meta.items():
+            field_name = meta.get('title', key.title())
+            field_class = meta.get('field_class', TicketFieldHorizontal)
+            widget_list.append(field_class(field_name, key=key))
+
+        return widget_list
+
+    def refresh_widgets(self, size):
+        ticket_dict = {}
+        if self.current_ticket:
+            ticket_dict = self.current_ticket.to_dict()
+
+        for wg_field in self.body.contents:
+            meta = self.parent_app.column_meta.get(wg_field.key, {})
+            _, (wg_field_value, _) = wg_field.contents
+            formatter = meta.get('formatter', str)
+            markup = formatter(ticket_dict.get(wg_field.key, ''))
+            if wg_field_value.text != markup:
+                wg_field_value.set_text(markup)
+
+
+
+    def render(self, size, focus=False):
+        """Wrap super `render` to refresh widgets."""
+        PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
+            self.__class__.__name__, size, focus
+        ))
+        self.refresh_widgets(size)
+        if hasattr(self.__super, 'render'):
+            return self.__super.render(size, focus)
+
+
+
 class AppFrame(urwid.Frame):
     """
     Provide a Frame widget to house a multi-page app.
@@ -323,9 +414,27 @@ class AppFrame(urwid.Frame):
 
     """
 
-    def __init__(self, title, client, *args, **kwargs):
+    column_meta = OrderedDict([
+        ('id', {
+            'title': 'Ticket #',
+            'sizing': ['fixed', 9],
+            'align': 'right',
+            'formatter': (lambda x: " {} ".format(x))
+        }),
+        ('subject', {
+            'sizing': ['weight', 2],
+        }),
+        ('type', {
+            'formatter': (lambda x: (x or 'ticket').title())
+        }),
+        ('priority', {
+            'formatter': (lambda x: x or '-')
+        }),
+    ])
+
+    def __init__(self, title=None, client=None, *args, **kwargs):
         """Wrap super __init__ with extra meta"""
-        self.title = title
+        self.title = title or ''
         # Mapping of pageIDs to widgets
         self.pages = {
             'BLANK': BlankPage(self)
@@ -391,7 +500,9 @@ class AppFrame(urwid.Frame):
             self.body = current_page
         _, (wg_page_title, _), (wg_page_usage, _) = self.header.contents
         if wg_page_title.text != current_page.page_title:
-            wg_page_title.text = current_page.page_title
+            wg_page_title.set_text(current_page.page_title)
+        if wg_page_usage.text != current_page.page_usage:
+            wg_page_usage.set_text(current_page.page_usage)
         if self.footer.text != current_page.page_status:
             self.footer.text = current_page.page_status
 
@@ -404,13 +515,27 @@ class AppFrame(urwid.Frame):
         if hasattr(self.__super, 'render'):
             return self.__super.render(size, focus)
 
-    # def keypress(self, size, key):
-    #     """Wrap super `keypress` to refresh widgets."""
-    #     # TODO: respond to "back" keypress
-    #     self.refresh_widgets(size)
-    #     PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
-    #         self.__class__.__name__, size, repr(key)
-    #     ))
+    def _action_back(self):
+        """Go back to the previous page."""
+        if self.page_stack:
+            self.page_stack = self.page_stack[:-1]
+
+    def keypress(self, size, key):
+        """Wrap super `keypress` to refresh widgets."""
+        # always focussed on the body
+        self.body.keypress(size, key)
+        # TODO: respond to "back" keypress
+
+        key_actions = {
+            'esc': 'back',
+        }
+        if key in key_actions:
+            getattr(self, '_action_{}'.format(key_actions[key]))()
+
+        self.refresh_widgets(size)
+        PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
+            self.__class__.__name__, size, repr(key)
+        ))
 
 
 class ZTVApp(object):
@@ -432,6 +557,7 @@ class ZTVApp(object):
 
         frame = AppFrame(client=self.client, title=u"Zendesk Ticket Viewer")
         frame.add_page('TICKET_LIST', TicketListPage)
+        frame.add_page('TICKET_VIEW', TicketViewPage)
         frame.set_page('TICKET_LIST')
 
         palette = [
