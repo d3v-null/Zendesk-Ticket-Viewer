@@ -1,11 +1,14 @@
 import shlex
 import unittest
+import os
 
-import configargparse
 import requests
 
+import configargparse
+from context import TEST_DATA_DIR
 from six import MovedModule, add_move
-from zendesk_ticket_viewer.core import get_config, validate_connection, get_client
+from zendesk_ticket_viewer.core import (get_client, get_config,
+                                        validate_connection)
 from zendesk_ticket_viewer.exceptions import ZTVConfigException
 
 if True:
@@ -13,11 +16,22 @@ if True:
     add_move(MovedModule('mock', 'mock', 'unittest.mock'))
     from six.moves import mock
 
-
-class TestMainMocked(unittest.TestCase):
+class TestBase(unittest.TestCase):
+    """
+    Base test case containing useful
+    """
     dummy_subdomain = 'foo.com'
     dummy_email = 'bar@baz.com'
     dummy_password = 'qux'
+    config = configargparse.Namespace(
+        subdomain=dummy_subdomain,
+        email=dummy_email,
+        password=dummy_password,
+        unpickle_tickets=True,
+        pickle_path=os.path.join(TEST_DATA_DIR, 'tickets.pkl')
+    )
+
+class TestMainMocked(TestBase):
 
     def test_get_config_argv(self):
         """Test that the get_config can parse the argv parameter."""

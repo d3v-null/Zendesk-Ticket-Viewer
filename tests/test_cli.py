@@ -11,53 +11,24 @@ import pickle
 import unittest
 from copy import copy
 
+import configargparse
 import urwid
 import zenpy
-from context import TEST_DATA_DIR
 from six import MovedModule, add_move
+from test_core import TestBase
 from zendesk_ticket_viewer.cli_urwid import (AppFrame, BlankPage, TicketCell,
                                              TicketColumn, TicketListPage)
+from zendesk_ticket_viewer.core import get_client
 
 if True:
     # Ensure certain libraries can be imported the same way in PY2/3
     add_move(MovedModule('mock', 'mock', 'unittest.mock'))
     from six.moves import mock
 
-class TestCliMocked(unittest.TestCase):
-    expected_start_content = [
-    	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
-    	b'>', b'       1 ', b'Sample ticket: Meet ', b'Incident  ', b'normal    ',
-    	b' ', b'       2 ', b'velit eiusmod repreh', b'Ticket    ', b'-         ',
-    	b' ', b'       3 ', b'excepteur laborum ex', b'Ticket    ', b'-         ',
-    	b' ', b'       4 ', b'ad sunt qui aute ull', b'Ticket    ', b'-         ',
-    	b' ', b'       5 ', b'aliquip mollit quis ', b'Ticket    ', b'-         ',
-    	b' ', b'       6 ', b'nisi aliquip ipsum n', b'Ticket    ', b'-         ',
-    	b' ', b'       7 ', b'cillum quis nostrud ', b'Ticket    ', b'-         ',
-    	b' ', b'       8 ', b'proident est nisi no', b'Ticket    ', b'-         ',
-    	b' ', b'       9 ', b'veniam ea eu minim a', b'Ticket    ', b'-         '
-    ]
-
-    expected_end_content = [
-    	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
-    	b'>', b'     101 ', b'in nostrud occaecat ', b'Ticket    ', b'-         ',
-    	b' ', b'         ', b'                    ', b'          ', b'          ',
-    	b' ', b'         ', b'                    ', b'          ', b'          ',
-    	b' ', b'         ', b'                    ', b'          ', b'          ',
-    	b' ', b'         ', b'                    ', b'          ', b'          ',
-    	b' ', b'         ', b'                    ', b'          ', b'          ',
-    	b' ', b'         ', b'                    ', b'          ', b'          ',
-    	b' ', b'         ', b'                    ', b'          ', b'          ',
-    	b' ', b'         ', b'                    ', b'          ', b'          '
-    ]
-
-    def setUp(self):
-        tickets_path = os.path.join(TEST_DATA_DIR, 'tickets.pkl')
-        with open(tickets_path, 'rb') as tickets_file:
-            # dumb hack to unpickle a file from python3
-            self.tickets = (
-                zenpy.lib.api_objects.Ticket(**json.loads(ticket))
-                for ticket in pickle.load(tickets_file)
-            )
+class TestCli(TestBase):
+    """
+    TODO: Split this into things that need client
+    """
 
     def test_ticket_cell_render(self):
         """
@@ -105,32 +76,48 @@ class TestCliMocked(unittest.TestCase):
             ]
         )
 
-    @mock.patch('zenpy.Zenpy')
-    def with_mocked_tickets(self, injected, tickets, zenpy_mock):
-        """
-        Call a given `injected` so that Zenpy.tickets() returns a mocked value.
+class TestCliClient(TestBase):
+    """
+    TODO: Split this into things that need client
+    """
+    # Cache client because it is costly to unpickle every test.
+    _client_cache = None
 
-        Args:
-            injected (:obj:`function`): The function to be injected into the
-                mocked context which takes a `zenpy.Zenpy` client as an arg
-            tickets (:obj:)
-            zenpy_mock : Provided by the mock.patch decorator
-        """
+    expected_start_content = [
+    	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
+    	b'>', b'       1 ', b'Sample ticket: Meet ', b'Incident  ', b'normal    ',
+    	b' ', b'       2 ', b'velit eiusmod repreh', b'Ticket    ', b'-         ',
+    	b' ', b'       3 ', b'excepteur laborum ex', b'Ticket    ', b'-         ',
+    	b' ', b'       4 ', b'ad sunt qui aute ull', b'Ticket    ', b'-         ',
+    	b' ', b'       5 ', b'aliquip mollit quis ', b'Ticket    ', b'-         ',
+    	b' ', b'       6 ', b'nisi aliquip ipsum n', b'Ticket    ', b'-         ',
+    	b' ', b'       7 ', b'cillum quis nostrud ', b'Ticket    ', b'-         ',
+    	b' ', b'       8 ', b'proident est nisi no', b'Ticket    ', b'-         ',
+    	b' ', b'       9 ', b'veniam ea eu minim a', b'Ticket    ', b'-         '
+    ]
 
-        zenpy_mock.return_value = mock.MagicMock(tickets=mock.MagicMock(
-            return_value=tickets
-        ))
-        client = zenpy.Zenpy()
-        return injected(client)
+    expected_end_content = [
+    	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
+    	b'>', b'     101 ', b'in nostrud occaecat ', b'Ticket    ', b'-         ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          '
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_client(cls.config)
 
     def test_blank_page(self):
         """
         Test that a blank app page satisfies the AppPage interface.
         """
-        def injected(client):
-            return BlankPage(AppFrame(client=client))
-
-        page = self.with_mocked_tickets(injected, self.tickets)
+        page = BlankPage(AppFrame(client=self.client))
         self.assertEqual(page.page_title, "")
         self.assertTrue(page.page_usage.startswith(""))
         self.assertEqual(page.page_status, "")
@@ -139,20 +126,16 @@ class TestCliMocked(unittest.TestCase):
         """
         Test that a ticket list app page satisfies the AppPage interface.
         """
-        def injected(client):
-            return TicketListPage(AppFrame(client=client))
 
-        page = self.with_mocked_tickets(injected, self.tickets)
+        page = TicketListPage(AppFrame(client=self.client))
         self.assertEqual(page.page_title, "Ticket List")
         self.assertTrue(page.page_usage.startswith("UP / DOWN"))
         # TODO: finish and test this
         self.assertEqual(page.page_status, "")
 
     def test_ticket_list_render(self):
-        def injected(client):
-            return TicketListPage(AppFrame(client=client))
 
-        ticket_list = self.with_mocked_tickets(injected, self.tickets)
+        ticket_list = TicketListPage(AppFrame(client=self.client))
 
         screen_size = (50, 10)
 
@@ -167,12 +150,10 @@ class TestCliMocked(unittest.TestCase):
         Capture the case where previously, bounds were not checked correctly for
         highlighted_index.
         """
-        def injected(client):
-            return TicketListPage(AppFrame(client=client))
 
         screen_size = (50, 10)
 
-        ticket_list = self.with_mocked_tickets(injected, self.tickets)
+        ticket_list = TicketListPage(AppFrame(client=self.client))
         ticket_list.render(screen_size, True)
         ticket_list.keypress(screen_size, 'page down')
         ticket_list.keypress(screen_size, 'page down')
@@ -195,12 +176,10 @@ class TestCliMocked(unittest.TestCase):
         Capture the edge case where the last page has less visible tickets
         than the previous page, causing selected_index to fall off visible tickets.
         """
-        def injected(client):
-            return TicketListPage(AppFrame(client=client))
 
         screen_size = (50, 38)
 
-        ticket_list = self.with_mocked_tickets(injected, self.tickets)
+        ticket_list = TicketListPage(AppFrame(client=self.client))
         ticket_list.render(screen_size, True)
         ticket_list.keypress(screen_size, 'page down')
         ticket_list.keypress(screen_size, 'page down')
@@ -211,12 +190,10 @@ class TestCliMocked(unittest.TestCase):
         Capture the edge case where a widget is resized after scrolling to the
         bottom.
         """
-        def injected(client):
-            return TicketListPage(AppFrame(client=client))
 
         screen_size = (50, 38)
 
-        ticket_list = self.with_mocked_tickets(injected, self.tickets)
+        ticket_list = TicketListPage(AppFrame(client=self.client))
         ticket_list.render(screen_size, True)
         ticket_list.keypress(screen_size, 'page down')
         ticket_list.keypress(screen_size, 'page down')
@@ -231,10 +208,7 @@ class TestCliMocked(unittest.TestCase):
         self.assertEqual(text_content, self.expected_end_content)
 
     def test_appframe_blank(self):
-        def injected(client):
-            return AppFrame("Test App", client)
-
-        frame = self.with_mocked_tickets(injected, self.tickets)
+        frame = AppFrame(client=self.client, title="Test App")
 
         screen_size = (50, 10)
         composite = frame.render(screen_size, True)

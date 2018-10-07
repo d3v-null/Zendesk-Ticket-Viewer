@@ -7,6 +7,7 @@ TODO:
 
 from __future__ import print_function, unicode_literals
 
+import json
 import logging
 import pickle
 import sys
@@ -14,6 +15,7 @@ import sys
 import requests
 
 import configargparse
+import zenpy
 from zenpy import Zenpy
 
 from . import PKG_NAME
@@ -38,16 +40,25 @@ def get_config(argv=None):
     parser.add('--email', env_var='ZENDESK_EMAIL')
     parser.add('--password', env_var='ZENDESK_PASSWORD')
 
-    # Logging
+    # Debug / Logging
     parser.add('--log-file', default='.%s.log' % PKG_NAME)
     parser.add(
         '--verbosity', choices=[
             'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG'
         ], default='WARNING'
     )
-    parser.add(
+    group = parser.add_mutually_exclusive_group()
+    group.add(
         '--pickle-tickets', help=configargparse.SUPPRESS,
         action='store_true'
+    )
+    group.add(
+        '--unpickle-tickets', help=configargparse.SUPPRESS,
+        action='store_true'
+    )
+    parser.add(
+        '--pickle-path', help=configargparse.SUPPRESS,
+        default='tests/test_data/tickets.pkl'
     )
 
     config = parser.parse_args(argv)
@@ -118,6 +129,9 @@ def validate_connection(config, session=None):
             to the subdomain
 
     """
+    if getattr(config, 'unpickle_tickets', None):
+        return
+
     if not config.subdomain:
         raise ZTVConfigException("No subdomain provided")
 
@@ -136,15 +150,28 @@ def validate_connection(config, session=None):
 
 def get_client(config):
     """Given a `config`, create a Zenpy API client."""
-    zenpy_creds = dict([
-        (zenpy_key, getattr(config, config_key)) for zenpy_key, config_key in [
+
+    zenpy_args = dict([
+        (zenpy_key, getattr(config, config_key, None))
+        for zenpy_key, config_key in [
             ('email', 'email'),
             ('password', 'password'),
             ('subdomain', 'subdomain')
         ]
     ])
 
-    zenpy_client = Zenpy(**zenpy_creds)
+    zenpy_client = Zenpy(**zenpy_args)
+
+    if getattr(config, 'unpickle_tickets', None):
+        # Chose LRUCache because TTL cache deletes things
+        cache = zenpy.ZenpyCache('LRUCache', maxsize=10000)
+        # TODO: fill zenpy_client.tickets.cache with data from file
+        with open(config.pickle_path, 'rb') as pickle_file:
+            for ticket_json in pickle.load(pickle_file):
+                ticket_dict = json.loads(ticket_json)
+                ticket = zenpy.lib.api_objects.Ticket(**ticket_dict)
+                cache[ticket.id] = ticket
+        zenpy_client.tickets.cache.mapping['ticket'] = cache
 
     return zenpy_client
 
@@ -152,7 +179,7 @@ def get_client(config):
 def pickle_tickets(config, client):
     """Store API tickets for later deserialization."""
     ticket_generator = client.tickets()
-    with open('tests/test_data/tickets.pkl', 'wb') as dump_file:
+    with open(config.pickle_path, 'wb') as dump_file:
         tickets = [ticket.to_json() for ticket in ticket_generator]
         # needs to be unpickable on PY2 and PY3
         pickle.dump(tickets, dump_file, protocol=2)

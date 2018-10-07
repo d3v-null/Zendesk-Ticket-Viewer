@@ -8,8 +8,11 @@ TODO: split this module into cli.widgets, cli.pages, cli.app to fix
 import logging
 from collections import OrderedDict
 
+import requests
+
 import numpy
 import urwid
+import zenpy
 from urwid.compat import with_metaclass
 
 from . import PKG_NAME
@@ -188,7 +191,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         # Force a space of 1 between columns
         kwargs['dividechars'] = 0
         self.parent_app = parent_app
-        self.ticket_generator = self.parent_app.client.tickets()
+        self._ticket_generator = None
         self.__super.__init__(
             self.initial_column_widgets(), *args, **kwargs
         )
@@ -196,6 +199,24 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         # Refresh widgets as if there was room for 1 row (otherwise blank).
         # HACK: find a more elegant solution for this
         self.refresh_widgets((None, self.nonbody_overhead + 1))
+
+    @property
+    def ticket_generator(self):
+        """Try and get generator of tickets from API otherwise use cache."""
+        if self._ticket_generator is None:
+            client = self.parent_app.client
+            try:
+                self._ticket_generator = client.tickets()
+            except (
+                zenpy.lib.exception.APIException,
+                requests.exceptions.ConnectionError
+            ):
+                # if we are in offline mode
+                cache = client.tickets.cache.mapping['ticket'].cache
+                if cache.__class__.__name__ != 'TTLCache':
+                    self._ticket_generator = cache.values().__iter__()
+
+        return self._ticket_generator
 
     @property
     def nonbody_overhead(self):
@@ -360,7 +381,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         self.__super.keypress(size, key)
 
     def render(self, size, focus=False):
-        """Wrap super `render`s to refresh scroll."""
+        """Wrap super and mixin `render`s."""
         self._mix_render(size, focus)
         return self.__super.render(size, focus)
 
@@ -413,7 +434,7 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
         self.__super.keypress(size, key)
 
     def render(self, size, focus=False):
-        """Wrap super `render`s."""
+        """Wrap super and mixin `render`s."""
         self._mix_render(size, focus)
         return self.__super.render(size, focus)
 
@@ -533,7 +554,7 @@ class AppFrame(urwid.Frame, RefreshesWidgetsMixin):
         self.__super.keypress(size, key)
 
     def render(self, size, focus=False):
-        """Wrap super `render`s."""
+        """Wrap super and mixin `render`s."""
         self._mix_render(size, focus)
         return self.__super.render(size, focus)
 
