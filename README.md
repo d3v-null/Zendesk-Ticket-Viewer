@@ -1,3 +1,7 @@
+[![Build Status](https://travis-ci.org/derwentx/Zendesk-Ticket-Viewer.svg?branch=master)](https://travis-ci.org/derwentx/Zendesk-Ticket-Viewer)
+[![Maintainability](https://api.codeclimate.com/v1/badges/f72799f7d813f48f9329/maintainability)](https://codeclimate.com/github/derwentx/Zendesk-Ticket-Viewer/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/f72799f7d813f48f9329/test_coverage)](https://codeclimate.com/github/derwentx/Zendesk-Ticket-Viewer/test_coverage)
+
 # Zendesk-Ticket-Viewer
 A simple python CLI utility which views support tickets using the Zendesk API
 
