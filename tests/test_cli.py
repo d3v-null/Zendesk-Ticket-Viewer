@@ -9,12 +9,13 @@ import json
 import os
 import pickle
 import unittest
+from copy import copy
 
 import urwid
 import zenpy
 from context import TEST_DATA_DIR
 from six import MovedModule, add_move
-from zendesk_ticket_viewer.cli_urwid import (BlankPage, TicketCell,
+from zendesk_ticket_viewer.cli_urwid import (AppFrame, BlankPage, TicketCell,
                                              TicketColumn, TicketListPage)
 
 if True:
@@ -40,6 +41,19 @@ class TestCliMocked(unittest.TestCase):
     	b' ', b'       7 ', b'cillum quis nostrud ', b'Ticket    ', b'-         ',
     	b' ', b'       8 ', b'proident est nisi no', b'Ticket    ', b'-         ',
     	b' ', b'       9 ', b'veniam ea eu minim a', b'Ticket    ', b'-         '
+    ]
+
+    expected_end_content = [
+    	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
+    	b'>', b'     101 ', b'in nostrud occaecat ', b'Ticket    ', b'-         ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          ',
+    	b' ', b'         ', b'                    ', b'          ', b'          '
     ]
 
     def setUp(self):
@@ -127,7 +141,6 @@ class TestCliMocked(unittest.TestCase):
         self.assertTrue(page.page_usage.startswith(""))
         self.assertEqual(page.page_status, "")
 
-
     def test_ticket_list(self):
         """
         Test that a ticket list app page satisfies the AppPage interface.
@@ -138,9 +151,8 @@ class TestCliMocked(unittest.TestCase):
         page = self.with_mocked_tickets(injected, self.tickets)
         self.assertEqual(page.page_title, "Ticket List")
         self.assertTrue(page.page_usage.startswith("UP / DOWN"))
-        # TODO: test this
+        # TODO: finish and test this
         self.assertEqual(page.page_status, "")
-
 
     def test_ticket_list_render(self):
         def injected(client):
@@ -172,12 +184,17 @@ class TestCliMocked(unittest.TestCase):
         ticket_list.keypress(screen_size, 'page down')
         ticket_list.keypress(screen_size, 'page up')
         ticket_list.keypress(screen_size, 'page up')
+        ticket_list.keypress(screen_size, 'down')
 
         composite = ticket_list.render(screen_size, True)
         text_content = list(
             text for _, _, text in itertools.chain(*composite.content())
         )
-        self.assertEqual(text_content, self.expected_start_content)
+
+        expected = copy(self.expected_start_content)
+        expected[5] = b' '
+        expected[10] = b'>'
+        self.assertEqual(text_content, expected)
 
     def test_ticket_list_render_paging_hard(self):
         """
@@ -212,4 +229,35 @@ class TestCliMocked(unittest.TestCase):
         ticket_list.keypress(screen_size, 'page down')
 
         screen_size = (50, 10)
-        ticket_list.render(screen_size, True)
+
+        composite = ticket_list.render(screen_size, True)
+        text_content = list(
+            text for _, _, text in itertools.chain(*composite.content())
+        )
+        self.assertEqual(text_content, self.expected_end_content)
+
+    def test_appframe_blank(self):
+        def injected(client):
+            return AppFrame("Test App", client)
+
+        frame = self.with_mocked_tickets(injected, self.tickets)
+
+        screen_size = (50, 10)
+        composite = frame.render(screen_size, True)
+
+        text_content = list(
+            text for _, _, text in itertools.chain(*composite.content())
+        )
+
+        self.assertEqual(text_content, [
+        	b'Test App         ', b'                 ', b'                ',
+        	b'                                                  ',
+        	b'                                                  ',
+        	b'                                                  ',
+        	b'                                                  ',
+        	b'                                                  ',
+        	b'                                                  ',
+        	b'                                                  ',
+        	b'                                                  ',
+        	b'                                                  '
+        ])

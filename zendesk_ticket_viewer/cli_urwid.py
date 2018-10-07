@@ -407,7 +407,6 @@ class AppFrame(urwid.Frame):
     # def keypress(self, size, key):
     #     """Wrap super `keypress` to refresh widgets."""
     #     # TODO: respond to "back" keypress
-    #
     #     self.refresh_widgets(size)
     #     PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
     #         self.__class__.__name__, size, repr(key)
