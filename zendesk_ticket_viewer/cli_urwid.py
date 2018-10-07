@@ -687,7 +687,7 @@ class ZTVApp(object):
             ('column_header', 'dark blue', 'black', ('bold', 'underline')),
             ('column', 'light gray', 'black'),
             ('header', 'white', 'dark red', 'bold'),
-            ('important_header', 'dark blue', 'dark red', 'bold'),
+            ('important_header', 'white', 'dark red', 'bold'),
             (
                 'important', 'dark blue', 'light gray',
                 ('standout', 'underline')
