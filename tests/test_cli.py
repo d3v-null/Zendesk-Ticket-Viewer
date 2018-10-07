@@ -1,9 +1,5 @@
 """
 Tests for CLI module.
-
-TODO:
------
-    Test for crash when resize terminal
 """
 
 from __future__ import generators
@@ -11,21 +7,26 @@ from __future__ import generators
 import itertools
 import json
 import os
-import unittest
 import pickle
+import unittest
 
 import urwid
 import zenpy
 from context import TEST_DATA_DIR
 from six import MovedModule, add_move
-from zendesk_ticket_viewer.cli_urwid import (TicketCell, TicketColumn,
-                                             TicketList)
+from zendesk_ticket_viewer.cli_urwid import (BlankPage, TicketCell,
+                                             TicketColumn, TicketListPage)
 
 if True:
     # Ensure certain libraries can be imported the same way in PY2/3
     add_move(MovedModule('mock', 'mock', 'unittest.mock'))
     from six.moves import mock
 
+
+class FakeApp(object):
+    """A fake app containing a reference to a client for testing."""
+    def __init__(self, client):
+        self.client = client
 
 class TestCliMocked(unittest.TestCase):
     expected_start_content = [
@@ -114,9 +115,36 @@ class TestCliMocked(unittest.TestCase):
         client = zenpy.Zenpy()
         return injected(client)
 
+    def test_blank_page(self):
+        """
+        Test that a blank app page satisfies the AppPage interface.
+        """
+        def injected(client):
+            return BlankPage(FakeApp(client))
+
+        page = self.with_mocked_tickets(injected, self.tickets)
+        self.assertEqual(page.page_title, "")
+        self.assertTrue(page.page_usage.startswith(""))
+        self.assertEqual(page.page_status, "")
+
+
+    def test_ticket_list(self):
+        """
+        Test that a ticket list app page satisfies the AppPage interface.
+        """
+        def injected(client):
+            return TicketListPage(FakeApp(client))
+
+        page = self.with_mocked_tickets(injected, self.tickets)
+        self.assertEqual(page.page_title, "Ticket List")
+        self.assertTrue(page.page_usage.startswith("UP / DOWN"))
+        # TODO: test this
+        self.assertEqual(page.page_status, "")
+
+
     def test_ticket_list_render(self):
         def injected(client):
-            return TicketList(client)
+            return TicketListPage(FakeApp(client))
 
         ticket_list = self.with_mocked_tickets(injected, self.tickets)
 
@@ -134,7 +162,7 @@ class TestCliMocked(unittest.TestCase):
         highlighted_index.
         """
         def injected(client):
-            return TicketList(client)
+            return TicketListPage(FakeApp(client))
 
         screen_size = (50, 10)
 
@@ -157,7 +185,7 @@ class TestCliMocked(unittest.TestCase):
         than the previous page, causing selected_index to fall off visible tickets.
         """
         def injected(client):
-            return TicketList(client)
+            return TicketListPage(FakeApp(client))
 
         screen_size = (50, 38)
 
@@ -173,7 +201,7 @@ class TestCliMocked(unittest.TestCase):
         bottom.
         """
         def injected(client):
-            return TicketList(client)
+            return TicketListPage(FakeApp(client))
 
         screen_size = (50, 38)
 

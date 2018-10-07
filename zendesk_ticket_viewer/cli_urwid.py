@@ -5,6 +5,7 @@ from collections import OrderedDict
 
 import numpy
 import urwid
+from urwid.compat import with_metaclass
 
 from . import PKG_NAME
 
@@ -17,7 +18,7 @@ class TicketCell(urwid.Text):
     def __init__(self, *args, **kwargs):
         """Wrap `urwid.Text.__init__`, force clipping on cell elements."""
         kwargs['wrap'] = urwid.CLIP
-        super(TicketCell, self).__init__(*args, **kwargs)
+        self.__super.__init__(*args, **kwargs)
 
 
 class TicketColumn(urwid.Frame):
@@ -32,11 +33,51 @@ class TicketColumn(urwid.Frame):
         if header is not None:
             header = urwid.AttrWrap(header, 'column_header')
 
-        super(TicketColumn, self).__init__(body, header, *args, **kwargs)
+        self.__super.__init__(body, header, *args, **kwargs)
 
 
-class TicketList(urwid.Columns):
-    """A widget which displays a table of ticket information."""
+class AppPageMixin(with_metaclass(urwid.MetaSuper)):
+    """Provide the interface for a page within an app."""
+
+    def __init__(self):
+        """wrap super __init__ as per urwid MetaClass spec."""
+        assert self.parent_app
+        self.__super.__init__()
+
+    @property
+    def page_usage(self):
+        """Provide the usage message for this page."""
+        raise NotImplementedError()
+
+    @property
+    def page_title(self):
+        """Provide the title for this page."""
+        raise NotImplementedError()
+
+    @property
+    def page_status(self):
+        """Provide an optional status line for this page."""
+        return ""
+
+
+class BlankPage(urwid.ListBox, AppPageMixin):
+    """A blank app page."""
+
+    def __init__(self, parent_app, *args, **kwargs):
+        self.parent_app = parent_app
+        self.__super.__init__(urwid.SimpleListWalker([]))
+
+    @AppPageMixin.page_usage.getter
+    def page_usage(self):
+        return ""
+
+    @AppPageMixin.page_title.getter
+    def page_title(self):
+        return ""
+
+
+class TicketListPage(urwid.Columns, AppPageMixin):
+    """An app page which displays a table of ticket information."""
 
     _selectable = True
     header_size = 1
@@ -62,10 +103,8 @@ class TicketList(urwid.Columns):
         }),
     ])
 
-    def __init__(self, client, *args, **kwargs):
-        """Wrap urwid.Columns.__init__ with extra metadata."""
-        self.client = client
-        self.ticket_generator = self.client.tickets()
+    def __init__(self, parent_app, *args, **kwargs):
+        """Wrap super `__init__`s with extra metadata."""
         # Cache access to generator to avoid api calls
         self._ticket_cache = []
         # Offset into the generator of the first visible element
@@ -74,25 +113,46 @@ class TicketList(urwid.Columns):
         self.index_highlighted = 0
         # Force a space of 1 between columns
         kwargs['dividechars'] = 0
-        super(TicketList, self).__init__(
-            self.initial_widget_list(), *args, **kwargs
+        self.parent_app = parent_app
+        self.ticket_generator = self.parent_app.client.tickets()
+        self.__super.__init__(
+            self.initial_column_widgets(), *args, **kwargs
         )
+
         # Refresh widgets as if there was room for 1 row.
-        self.refresh_widgets((None, self.header_size + 1))
+        # TODO: is this necessary?
+        self.refresh_widgets((None, self.nonbody_overhead + 1))
 
     @property
     def nonbody_overhead(self):
         """Rows taken up by the header and footer."""
         return self.header_size + self.footer_size
 
-    def initial_widget_list(self):
+    @AppPageMixin.page_usage.getter
+    def page_usage(self):
+        return (
+            u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
+            u"SPACE / ENTER selects. "
+            u"F8 exits."
+        )
+
+    @AppPageMixin.page_title.getter
+    def page_title(self):
+        return "Ticket List"
+
+    @AppPageMixin.page_status.getter
+    def page_status(self):
+        # TODO: paging progress ("X - Y of Z")
+        return ""
+
+    def initial_column_widgets(self):
         """
         Generate the initial list of column widgets.
 
         Widget size is not known until render time, so no ticket entries are
         added to the widget list initially.
         """
-        # TODO: add footer widget that shows paging progress ("X - Y of Z")
+        # First column is a selection indicator
         widget_list = [
             ('fixed', 1, TicketColumn(
                 header=urwid.Divider(),
@@ -100,6 +160,7 @@ class TicketList(urwid.Columns):
                 key='_selected'
             ))
         ]
+        # Other widget columns show ticket data
         for key, meta in self.column_meta.items():
             title = meta.get('title', key.title())
             column_widget = TicketColumn(
@@ -173,7 +234,7 @@ class TicketList(urwid.Columns):
                     cell_widget = urwid.AttrWrap(cell_widget, 'important')
                 cell_widgets.append(cell_widget)
 
-            # TODO: test for memory usage
+            # TODO: test for memory leaks
 
             column.body = urwid.ListBox(urwid.SimpleListWalker(cell_widgets))
 
@@ -208,12 +269,13 @@ class TicketList(urwid.Columns):
         self.refresh_widgets(size)
 
     def render(self, size, focus=False):
-        """Wrap `urwid.Columns.render` and refresh scroll."""
-        PKG_LOGGER.debug('rendering, size={} focus={}'.format(size, focus))
+        """Wrap super `render` to refresh scroll."""
+        PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
+            self.__class__.__name__, size, focus
+        ))
         self.scroll(size, 0)
-        super_obj = super(TicketList, self)
-        if hasattr(super_obj, 'render'):
-            return super_obj.render(size, focus)
+        if hasattr(self.__super, 'render'):
+            return self.__super.render(size, focus)
 
     def _action_open(self):
         """Open view of selected ticket."""
@@ -221,10 +283,12 @@ class TicketList(urwid.Columns):
         PKG_LOGGER.debug('Actioning ticket id={}'.format(ticket_id))
 
     def keypress(self, size, key):
-        """Wrap `urwid.Columns.keypress` and perform actions / scroll."""
-        PKG_LOGGER.debug('keypress, size={} key={}'.format(size, repr(key)))
+        """Wrap super `keypress` and perform actions / scroll."""
+        PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
+            self.__class__.__name__, size, repr(key)
+        ))
         _, maxcol = size
-        # TODO: action selected ticket when key
+        # TODO: replace logic with urwid.command_map
         key_actions = {
             ' ': 'open',
             'enter': 'open',
@@ -241,13 +305,111 @@ class TicketList(urwid.Columns):
             'page down': page_jump
         }
         self.scroll(size, key_movements.get(key, 0))
-        return super(TicketList, self).keypress(size, key)
+        return self.__super.keypress(size, key)
+
+
+class AppFrame(urwid.Frame):
+    """
+    Provide a Frame widget to house a multi-page app.
+
+    TODO:
+        - page stack (so back button works as expected)
+
+    """
+
+    def __init__(self, title, client, *args, **kwargs):
+        """Wrap super __init__ with extra meta"""
+        self.title = title
+        # Mapping of pageIDs to widgets
+        self.pages = {
+            'BLANK': BlankPage(self)
+        }
+        # LIFO queue of page IDs that functions as a "history".
+        self.page_stack = []
+        # API Client,
+        self.client = client
+        # TODO: figure outo what to pass to super Frame __init__
+        self.__super.__init__(
+            header=self.initial_header_widget(),
+            body=self.current_page,
+            footer=self.initial_footer_widget(),
+            *args, **kwargs
+        )
+
+    @property
+    def current_page(self):
+        """Return the current page of the app."""
+        page_id = "BLANK"
+        if self.page_stack:
+            page_id = self.page_stack[-1]
+        return self.pages[page_id]
+
+    def initial_header_widget(self):
+        """Create the initial header widget to be updated later."""
+        return urwid.AttrWrap(
+            urwid.Columns([
+                urwid.Text(self.title, align='left'),
+                urwid.AttrWrap(
+                    urwid.Text(self.current_page.page_title, align='center'),
+                    'important_header'
+                ),
+                urwid.Text(self.current_page.page_usage, align='right')
+            ]),
+            'header'
+        )
+
+    def initial_footer_widget(self):
+        """Create the initial footer widget to be updated later."""
+        return urwid.AttrWrap(
+            urwid.Text(self.current_page.page_status, align='right'),
+            'footer'
+        )
+
+    def add_page(self, page_id, page_cls, *args, **kwargs):
+        """Instantiate a page to the app with a unique `page_id`."""
+        assert page_id not in self.pages, "page ID must be unique"
+        self.pages[page_id] = page_cls(self, *args, **kwargs)
+        return self.pages[page_id]
+
+    def set_page(self, page_id):
+        """Add the page_id to the top of the page stack."""
+        assert page_id in self.pages, "page ID must have been added."
+        self.page_stack.append(page_id)
+
+    def refresh_widgets(self, size):
+        """Check before refreshing header / footer status widgets."""
+        # TODO: update the text on the header / footer widgets with the latest
+        # info from the current page app.
+        current_page = self.current_page
+        if self.body != current_page:
+            self.body = current_page
+        _, (wg_page_title, _), (wg_page_usage, _) = self.header.contents
+        if wg_page_title.text != current_page.page_title:
+            wg_page_title.text = current_page.page_title
+        if self.footer.text != current_page.page_status:
+            self.footer.text = current_page.page_status
+
+    def render(self, size, focus=False):
+        """Wrap super `render` to refresh widgets."""
+        PKG_LOGGER.debug('{} rendering, size={} focus={}'.format(
+            self.__class__.__name__, size, focus
+        ))
+        self.refresh_widgets(size)
+        if hasattr(self.__super, 'render'):
+            return self.__super.render(size, focus)
+
+    # def keypress(self, size, key):
+    #     """Wrap super `keypress` to refresh widgets."""
+    #     # TODO: respond to "back" keypress
+    #
+    #     self.refresh_widgets(size)
+    #     PKG_LOGGER.debug('{} keypress, size={} key={}'.format(
+    #         self.__class__.__name__, size, repr(key)
+    #     ))
 
 
 class ZTVApp(object):
     """Provide CLI app functionality."""
-
-    title = u"Zendesk Ticket Viewer"
 
     def __init__(self, client):
         """
@@ -263,38 +425,9 @@ class ZTVApp(object):
         """Start the TUI app."""
         PKG_LOGGER.debug('Running TUI App')
 
-        text_header_left = self.title
-        text_header_center = [
-            ('important_header', "Ticket List ")
-        ]
-        text_header_right = [
-            (
-                u"UP / DOWN / PAGE UP / PAGE DOWN scrolls. "
-                u"SPACE / ENTER selects. "
-                u"F8 exits."
-            )
-        ]
-
-        blank = urwid.Divider()
-
-        header = urwid.AttrWrap(
-            urwid.Columns([
-                urwid.Text(text_header_left, align='left'),
-                urwid.Text(text_header_center, align='center'),
-                urwid.Text(text_header_right, align='right')
-            ]),
-            'header'
-        )
-
-        # TODO: finish this
-
-        body = TicketList(self.client)
-
-        frame = urwid.Frame(
-            header=header,
-            body=body,
-            footer=blank
-        )
+        frame = AppFrame(client=self.client, title=u"Zendesk Ticket Viewer")
+        frame.add_page('TICKET_LIST', TicketListPage)
+        frame.set_page('TICKET_LIST')
 
         palette = [
             ('body', 'black', 'light gray', 'standout'),
@@ -310,7 +443,7 @@ class ZTVApp(object):
             ('editfc', 'white', 'dark blue', 'bold'),
             ('editbx', 'light gray', 'dark blue'),
             ('editcp', 'black', 'light gray', 'standout'),
-            ('bright', 'dark gray', 'light gray', ('bold', 'standout')),
+            ('footer', 'dark gray', 'light gray', ('bold', 'standout')),
             ('buttn', 'black', 'dark cyan'),
             ('buttnf', 'white', 'dark blue', 'bold'),
         ]
