@@ -233,3 +233,6 @@ class TestCliApp(TestBase):
         app = ZTVApp(config=self.config)
         # since unpickle tickets is True, should bypass login
         self.assertEqual(app.frame.current_page_id, 'TICKET_LIST')
+        # enter on any list item should show a ticket view
+        app.frame.keypress((50, 10), 'enter')
+        self.assertEqual(app.frame.current_page_id, 'TICKET_VIEW')
