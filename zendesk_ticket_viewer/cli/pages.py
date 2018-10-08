@@ -135,6 +135,30 @@ class BlankPage(urwid.ListBox, AppPageMixin):
         self.__super.__init__(urwid.SimpleListWalker([]))
 
 
+def mix_render_keypress(cls):
+    """
+    Shorthand for adding these methods into sublasses multiple times.
+
+    Since each subclass of `AppElementMixin` calls the mixin keypress and
+    render, this saves lots of redundant code
+    """
+    def keypress(self, size, key):
+        """Wrap super `keypress` and perform actions."""
+        # Scroll regardless of if a move was made
+        self._mix_keypress(size, key)
+        super(cls, self).keypress(size, key)
+
+    def render(self, size, focus=False):
+        """Wrap super and mixin `render`s."""
+        self._mix_render(size, focus)
+        return super(cls, self).render(size, focus)
+
+    cls.keypress = keypress
+    cls.render = render
+    return cls
+
+
+@mix_render_keypress
 class TicketListPage(urwid.Columns, AppPageMixin):
     """An app page which displays a table of ticket information."""
 
@@ -373,18 +397,8 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         self.parent_frame.pages['TICKET_VIEW'].current_ticket = ticket
         self.parent_frame.set_page('TICKET_VIEW')
 
-    def keypress(self, size, key):
-        """Wrap super `keypress` and perform actions / scroll."""
-        # Scroll regardless of if a move was made
-        self._mix_keypress(size, key)
-        self.__super.keypress(size, key)
 
-    def render(self, size, focus=False):
-        """Wrap super and mixin `render`s."""
-        self._mix_render(size, focus)
-        return self.__super.render(size, focus)
-
-
+@mix_render_keypress
 class TicketViewPage(urwid.ListBox, AppPageMixin):
     """An app page which displays a single ticket's information."""
 
@@ -427,17 +441,8 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
             if wg_field_value.text != markup:
                 wg_field_value.set_text(markup)
 
-    def keypress(self, size, key):
-        """Wrap super `keypress`es."""
-        self._mix_keypress(size, key)
-        self.__super.keypress(size, key)
 
-    def render(self, size, focus=False):
-        """Wrap super and mixin `render`s."""
-        self._mix_render(size, focus)
-        return self.__super.render(size, focus)
-
-
+@mix_render_keypress
 class ErrorPage(urwid.Overlay, AppPageMixin):
     """An app page which displays an error."""
     _usage = (
@@ -486,18 +491,8 @@ class ErrorPage(urwid.Overlay, AppPageMixin):
         if wg_details.text != self.error_details:
             wg_details.set_text(self.error_details)
 
-    def render(self, size, focus=False):
-        """Wrap super and mixin `render`s."""
-        self._mix_render(size, focus)
-        return self.__super.render(size, focus)
 
-    def keypress(self, size, key):
-        """Wrap super `keypress`."""
-        # Scroll regardless of if a move was made
-        self._mix_keypress(size, key)
-        self.__super.keypress(size, key)
-
-
+@mix_render_keypress
 class WelcomePage(urwid.Overlay, AppPageMixin):
     _title = "Welcome"
 
