@@ -16,8 +16,9 @@ import urwid
 import zenpy
 from six import MovedModule, add_move
 from test_core import TestBase
-from zendesk_ticket_viewer.cli_urwid import (AppFrame, BlankPage, TicketCell,
-                                             TicketColumn, TicketListPage)
+from zendesk_ticket_viewer.cli.app import AppFrame
+from zendesk_ticket_viewer.cli.pages import (BlankPage, TicketCell, TicketListPage)
+from zendesk_ticket_viewer.cli.widgets import TicketColumn
 from zendesk_ticket_viewer.core import get_client
 
 if True:

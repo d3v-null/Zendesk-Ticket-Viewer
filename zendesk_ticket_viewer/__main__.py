@@ -1,12 +1,7 @@
-"""
-Provide main entrypoint for package.
-"""
-import functools
+"""Provide entrypoint for package."""
 
-from .core import (PKG_LOGGER, critical_error_exit, get_client, get_config,
-                   setup_logging, validate_connection)
-from .util import wrap_connection_error
-from .cli_urwid import ZTVApp
+from .cli.app import ZTVApp
+from .core import get_config, setup_logging
 
 
 def main():

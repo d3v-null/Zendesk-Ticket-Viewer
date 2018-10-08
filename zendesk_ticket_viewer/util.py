@@ -1,8 +1,7 @@
 """Utilities for the zendesk_ticket_viewer package."""
 
-import functools
-
 import requests
+
 import zenpy
 
 from .exceptions import ZTVConfigException

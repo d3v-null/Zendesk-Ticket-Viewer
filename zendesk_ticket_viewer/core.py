@@ -1,14 +1,7 @@
-"""
-Provide core functionality to zendesk_ticket_viewer module.
-
-TODO:
-    - method to restore pickled tickets into blank api object cache
-"""
+"""Provide core functionality to zendesk_ticket_viewer module."""
 
 from __future__ import division, print_function, unicode_literals
 
-import functools
-import itertools
 import json
 import logging
 import pickle
@@ -18,7 +11,6 @@ import time
 import requests
 
 import configargparse
-import six
 import urwid
 import zenpy
 from zenpy import Zenpy
@@ -80,7 +72,6 @@ def critical_error_exit(message=None, exc=None):
     Present the message to the user in full screen and is display until an
     input is received.
     """
-
     # log as critical first in case urwid doesn't work
     message = "Failure in %s" % message if message else "Fatal Error"
     logging.critical(message)
@@ -211,7 +202,6 @@ def validate_connection(config, session=None):
 
 def get_client(config):
     """Given a `config`, create a Zenpy API client."""
-
     zenpy_args = dict([
         (zenpy_key, getattr(config, config_key, None))
         for zenpy_key, config_key in [
