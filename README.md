@@ -11,6 +11,8 @@ A simple python CLI utility which views support tickets using the Zendesk API
 
 In order to run this on Windows you will need to install either [windodows subsystem for linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) if you have windows 10 or newer, or [cygwin](https://cygwin.com/install.html)
 
+It is recommended (although not completely necessary) that you use a terminal that supports UTF-8 and colour like [cmder](https://github.com/cmderdev/cmder)
+
 ## Any other OS
 
 Ensure you have python, pip and setuptools on your machine (this works on either Python2 or 3 so choose whatever version you prefer):
@@ -25,7 +27,7 @@ Install the `zendesk_ticket_viewer` console script to your path with
 python setup.py install
 ```
 
-Note: you may need to use the additional flag `--user` if you get a permission error.
+Note: you may need to `pip install . --user` if you get a permission error.
 
 Replace `install` with  `develop` instead of install if you would like make changes to this module that will be take affect right away.
 
