@@ -60,7 +60,7 @@ zendesk_ticket_viewer \
 ```
 
 If you want to use the UI without an internet connection or login, you can load
-a previously store session.
+a previously store session. This will bypass the login screen.
 
 ```bash
 zendesk_ticket_viewer \
@@ -69,6 +69,9 @@ zendesk_ticket_viewer \
 ```
 
 # Features
+
+## Login Screen
+<img src="screenshots/login.png?raw=true">
 
 ## Ticket List
 <img src="screenshots/ticket_list.png?raw=true">
