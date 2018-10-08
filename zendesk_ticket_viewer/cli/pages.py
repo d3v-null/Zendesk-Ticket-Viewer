@@ -200,8 +200,6 @@ class TicketListPage(urwid.Columns, AppPageMixin):
                     PKG_LOGGER.info, "Connected to API"
                 )
             )
-        # assert self._ticket_generator, \
-        #     "failure to make generator should be caught"
         return self._ticket_generator
 
     @property
@@ -464,7 +462,6 @@ class ErrorPage(urwid.Overlay, AppPageMixin):
         self._title = kwargs.get('error_message', 'Error')
         self.error_details = kwargs.get('error_details', 'An Error occured.')
 
-        # popup = urwid.Text(self.error_message)
         self.__super.__init__(
             urwid.AttrWrap(
                 urwid.LineBox(
