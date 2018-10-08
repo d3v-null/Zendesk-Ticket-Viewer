@@ -24,9 +24,7 @@ import zenpy
 from zenpy import Zenpy
 
 from . import PKG_NAME
-from .cli_urwid import ZTVApp
 from .exceptions import ZTVConfigException
-from .util import wrap_connection_error
 
 PKG_LOGGER = logging.getLogger(PKG_NAME)
 
@@ -247,6 +245,9 @@ def get_client(config):
                 ticket = zenpy.lib.api_objects.Ticket(**ticket_dict)
                 cache[ticket.id] = ticket
         zenpy_client.tickets.cache.mapping['ticket'] = cache
+
+    if getattr(config, 'pickle_tickets', None):
+        pickle_tickets(config, zenpy_client)
 
     return zenpy_client
 

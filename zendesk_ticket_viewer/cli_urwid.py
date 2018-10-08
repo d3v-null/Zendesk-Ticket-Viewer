@@ -13,19 +13,34 @@ from collections import OrderedDict
 
 import requests
 
+import configargparse
 import numpy
 import six
 import urwid
 import zenpy
 from urwid.compat import with_metaclass
 
-from . import PKG_NAME
+from .core import (PKG_LOGGER, critical_error_exit, get_client, get_config,
+                   setup_logging, validate_connection)
 from .util import wrap_connection_error
 
 # TODO: remove numpy dependency, it takes forever to install on WSL'
 
-
-PKG_LOGGER = logging.getLogger(PKG_NAME)
+ZENDESK_LOGO = \
+    " `////////////////.  :///////////////.  \n" + \
+    "  mNNNNNNNNNNNNNNN-  dNNNNNNNNNNNNNm/   \n" + \
+    "  -mNNNNNNNNNNNNN+   dNNNNNNNNNNNNs`    \n" + \
+    "   .smNNNNNNNNNh-    dNNNNNNNNNNh.      \n" + \
+    "     `:+syyso/`  ::  dNNNNNNNNm/        \n" + \
+    "               .yN+  dNNNNNNNo`         \n" + \
+    "              +NNN+  dNNNNNh.           \n" + \
+    "            :dNNNN+  dNNNm:             \n" + \
+    "          .yNNNNNN+  dNNo`              \n" + \
+    "        `oNNNNNNNN+  dy.     `          \n" + \
+    "       :mNNNNNNNNN+  -  -ohmNNNmho-     \n" + \
+    "     .hNNNNNNNNNNN+   -hNNNNNNNNNNNh-   \n" + \
+    "   `oNNNNNNNNNNNNN+  -NNNNNNNNNNNNNNN-  \n" + \
+    "  /mNNNNNNNNNNNNNN+  yNNNNNNNNNNNNNNNy\ "
 
 
 class TicketCell(urwid.Text):
@@ -58,10 +73,16 @@ class TicketColumn(urwid.Frame):
         self.__super.__init__(body, header, *args, **kwargs)
 
 
-class TicketFieldHorizontal(urwid.Columns):
-    """A widget which displays a ticket field title and contents."""
+class FormFieldHorizontal(urwid.Columns):
+    """A configurable widget which displays a field label and value."""
 
-    def __init__(self, field_name, field_value=None, *args, **kwargs):
+    _default_lbl_class = TicketCell
+    _default_lbl_style = 'column_header'
+    _default_val_class = TicketCell
+    _default_val_style = 'column'
+    _default_val_kwargs = {}
+
+    def __init__(self, field_label, field_value=None, *args, **kwargs):
         """
         Wrap super `__init__` with extra metadata and attributes.
 
@@ -70,8 +91,16 @@ class TicketFieldHorizontal(urwid.Columns):
             key (:obj:`str`): The key into ticket data this field represents
         """
         self.key = kwargs.pop('key', None)
-        self.field_name = field_name
-        self.field_value = field_value
+        self.field_label = field_label or ''
+        self.field_value = field_value or ''
+
+        self._lbl_class = kwargs.pop('lbl_class', self._default_lbl_class)
+        self._lbl_style = kwargs.pop('lbl_style', self._default_lbl_style)
+        self._val_class = kwargs.pop('val_class', self._default_val_class)
+        self._val_style = kwargs.pop('val_style', self._default_val_style)
+        self._val_kwargs = self._default_val_kwargs.copy()
+        self._val_kwargs.update(kwargs.pop('val_kwargs', {}))
+
         kwargs['dividechars'] = 1
         self.__super.__init__(
             self.initial_widget_list(),
@@ -83,17 +112,41 @@ class TicketFieldHorizontal(urwid.Columns):
         return [
             (
                 'weight', 1, urwid.AttrWrap(
-                    TicketCell(self.field_name, align=urwid.RIGHT),
-                    'column_header'
+                    self._lbl_class(self.field_label, align=urwid.RIGHT),
+                    self._lbl_style
                 )
             ),
             (
                 'weight', 2, urwid.AttrWrap(
-                    TicketCell(self.field_value or '', ),
-                    'column'
+                    self._val_class(self.field_value, **self._val_kwargs),
+                    self._val_style
                 )
             )
         ]
+
+    def get_value_text(self):
+        _, (wg_value, _) = self.contents
+        return wg_value.text
+
+class FormFieldHorizontalEdit(FormFieldHorizontal):
+    _default_val_class = urwid.Edit
+
+class FormFieldHorizontalPass(FormFieldHorizontalEdit):
+    _default_val_kwargs = {'mask': '*'}
+
+    def __init__(self, field_label, field_value, *args, **kwargs):
+        """Wrap __init__ so field_value is edit_text, not caption."""
+        kwargs['val_kwargs'] = {'edit_text': field_value}
+        field_value = ''
+        self.__super.__init__(field_label, field_value, *args, **kwargs)
+
+    def get_value_text(self):
+        _, (wg_value, _) = self.contents
+        old_mask = wg_value._mask
+        wg_value.set_mask(None)
+        response = self.__super.get_value_text()
+        wg_value.set_mask(old_mask)
+        return response
 
 
 class AppElementMixin(with_metaclass(urwid.MetaSuper)):
@@ -261,12 +314,10 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         if cache.__class__.__name__ != 'TTLCache':
             self._ticket_generator = cache.values().__iter__()
         else:
-            def fatal(*args):
-                self.modal_fatal_error(*args)
             self._ticket_generator = wrap_connection_error(
                 functools.partial(client.tickets, timeout=5),
                 attempting="Connecting to API",
-                on_fail=fatal,
+                on_fail=functools.partial(self.modal_fatal_error),
                 on_success=functools.partial(
                     PKG_LOGGER.info, "Connected to API"
                 )
@@ -486,9 +537,9 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
         widget_list = []
 
         for key, meta in self.parent_frame.column_meta.items():
-            field_name = meta.get('title', key.title())
-            field_class = meta.get('field_class', TicketFieldHorizontal)
-            widget_list.append(field_class(field_name, key=key))
+            field_label = meta.get('title', key.title())
+            field_class = meta.get('field_class', FormFieldHorizontal)
+            widget_list.append(field_class(field_label, key=key))
 
         return widget_list
 
@@ -577,6 +628,91 @@ class ErrorPage(urwid.Overlay, AppPageMixin):
         self._mix_keypress(size, key)
         self.__super.keypress(size, key)
 
+class WelcomePage(urwid.Overlay, AppPageMixin):
+    _title = "Welcome"
+
+    key_actions = {
+        'enter': 'login'
+    }
+
+    _usage = (
+        u"F8 / ESC exits."
+    )
+
+    def __init__(self, parent_frame, *args, **kwargs):
+        """Wrap super `__init__` with extra metadata."""
+        self.parent_frame = parent_frame
+        config = self.parent_frame.config
+        self.form_fields = [
+            cls(label_text, getattr(config, key, ''), key=key)
+            for key, (cls, label_text) in {
+                'subdomain': (FormFieldHorizontalEdit, 'Subdomain: '),
+                'email': (FormFieldHorizontalEdit, 'Email: '),
+                'password': (FormFieldHorizontalPass, 'Password: '),
+            }.items()
+        ]
+
+        widget_list = [
+            urwid.Divider(),
+            urwid.Text(ZENDESK_LOGO, align='center'),
+            urwid.Divider(),
+        ] + self.form_fields + [
+            urwid.Divider(),
+            urwid.Button(
+                "Login", on_press=self._action_login
+            )
+        ]
+
+        self.__super.__init__(
+            urwid.AttrWrap(
+                urwid.LineBox(
+                    urwid.ListBox(urwid.SimpleFocusListWalker(
+                        widget_list
+                    )),
+                ),
+                'column_header'
+            ),
+            self.parent_frame.current_page,
+            align='center', width=('relative', 50),
+            valign='middle', height=('relative', 80),
+            min_width=24, min_height=8,
+        )
+
+    def _action_login(self, *args):
+        for wg_field in self.form_fields:
+            value = wg_field.get_value_text()
+            setattr(
+                self.parent_frame.config, wg_field.key, value
+            )
+            if wg_field.key == 'password':
+                value = "*" * len(value)
+            PKG_LOGGER.info("updated config[{}] = {}".format(
+                wg_field.key, value
+            ))
+
+        # The Ticket Viewer should handle the API being unavailable
+        wrap_connection_error(
+            functools.partial(validate_connection, self.parent_frame.config),
+            attempting="Validate connection",
+            on_fail=functools.partial(self.modal_fatal_error),
+            on_success=functools.partial(
+                PKG_LOGGER.info, "Connection validated"
+            )
+        )
+
+        self.parent_frame.client = wrap_connection_error(
+            functools.partial(get_client, self.parent_frame.config),
+            attempting="Create client",
+            on_fail=functools.partial(self.modal_fatal_error),
+            on_success=functools.partial(
+                PKG_LOGGER.info, "Client created"
+            )
+        )
+
+        # if no error screen is showing
+        if self.parent_frame.current_page_id == 'WELCOME':
+            self.parent_frame.set_page('TICKET_LIST')
+
 
 class AppFrame(urwid.Frame, AppElementMixin):
     """Provide a Frame widget to house a multi-page app."""
@@ -613,9 +749,9 @@ class AppFrame(urwid.Frame, AppElementMixin):
         # 'e': 'error',
     }
 
-    def __init__(self, title=None, client=None, loop=None, *args, **kwargs):
+    def __init__(self, client=None, *args, **kwargs):
         """Wrap super __init__ with extra meta."""
-        self.title = title or ''
+        self.title = kwargs.pop('title', '')
         # Mapping of pageIDs to widgets
         self.pages = {
             'BLANK': BlankPage(self)
@@ -625,7 +761,7 @@ class AppFrame(urwid.Frame, AppElementMixin):
         # API Client,
         self.client = client
         # App event loop
-        self.loop = loop
+        self.loop = kwargs.pop('loop', None)
         self.__super.__init__(
             header=self.initial_header_widget(),
             body=self.current_page,
@@ -634,12 +770,19 @@ class AppFrame(urwid.Frame, AppElementMixin):
         )
 
     @property
+    def config(self):
+        """Convenient shortcut for app config namespace."""
+        return self.loop.config
+
+    @property
+    def current_page_id(self):
+        """Return the current page id of the app."""
+        return self.page_stack[-1] if self.page_stack else "BLANK"
+
+    @property
     def current_page(self):
         """Return the current page of the app."""
-        page_id = "BLANK"
-        if self.page_stack:
-            page_id = self.page_stack[-1]
-        return self.pages[page_id]
+        return self.pages[self.current_page_id]
 
     @property
     def previous_page(self):
@@ -717,7 +860,13 @@ class AppFrame(urwid.Frame, AppElementMixin):
 
     def render(self, size, focus=False):
         """Wrap super and mixin `render`s."""
+        PKG_LOGGER.debug("current page is {}".format(self.current_page_id))
         self._mix_render(size, focus)
+
+        if self.loop is not None:
+            if self.current_page_id == 'BLANK':
+                raise urwid.ExitMainLoop()
+
         return self.__super.render(size, focus)
 
 
@@ -740,7 +889,7 @@ class ZTVApp(with_metaclass(urwid.MetaSuper, urwid.MainLoop)):
         ('buttnf', 'white', 'dark blue', 'bold'),
     ]
 
-    def __init__(self, client):
+    def __init__(self, client=None, config=None):
         """
         Initialize ZTVApp instance.
 
@@ -748,14 +897,19 @@ class ZTVApp(with_metaclass(urwid.MetaSuper, urwid.MainLoop)):
         ----
             client (:obj:`zenpy.Zenpy`): The Zendesk API client
         """
-        self.client = client
+        self.config = config or configargparse.Namespace()
         self.screen = urwid.raw_display.Screen()
         self.frame = AppFrame(
-            client=self.client, title=u"Zendesk Ticket Viewer", loop=self
+            client=client, title=u"Zendesk Ticket Viewer", loop=self,
         )
+        self.frame.add_page('WELCOME', WelcomePage)
         self.frame.add_page('TICKET_LIST', TicketListPage)
         self.frame.add_page('TICKET_VIEW', TicketViewPage)
-        self.frame.set_page('TICKET_LIST')
+        self.frame.set_page('WELCOME')
+        if getattr(self.config, 'unpickle_tickets'):
+            # no creds required when unpickle_tickets so bypass log in
+            self.frame.pages['WELCOME']._action_login()
+            del self.frame.pages['WELCOME']
 
         self.__super.__init__(
             widget=self.frame, palette=self.palette, screen=self.screen,

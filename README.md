@@ -91,6 +91,6 @@ zendesk_ticket_viewer \
  - [x] simple proof of concept curses CLI using ~~npyscreen~~ urwid
  - [x] modularize multi-screen CLI code for easier testing
  - [x] beautiful error handing
- - [ ] welcome screen
+ - [x] welcome screen
  - [ ] *testing* - test coverage of CLI
  - [ ] *testing* - test on WSL
