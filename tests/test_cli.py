@@ -18,7 +18,7 @@ from six import MovedModule, add_move
 from test_core import TestBase
 from zendesk_ticket_viewer.cli.app import AppFrame, ZTVApp
 from zendesk_ticket_viewer.cli.pages import (BlankPage, ErrorPage, TicketCell,
-                                             TicketListPage)
+                                             TicketListPage, TicketViewPage)
 from zendesk_ticket_viewer.cli.widgets import (FormFieldHorizontalPass,
                                                TicketColumn)
 from zendesk_ticket_viewer.core import get_client
@@ -98,7 +98,7 @@ class TestCliPages(TestBase):
     # Cache client because it is costly to unpickle every test.
     _client_cache = None
 
-    expected_start_content = [
+    list_content_start = [
     	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
     	b'>', b'       1 ', b'Sample ticket: Meet ', b'Incident  ', b'normal    ',
     	b' ', b'       2 ', b'velit eiusmod repreh', b'Ticket    ', b'-         ',
@@ -111,7 +111,7 @@ class TestCliPages(TestBase):
     	b' ', b'       9 ', b'veniam ea eu minim a', b'Ticket    ', b'-         '
     ]
 
-    expected_end_content = [
+    list_content_end = [
     	b' ', b'Ticket # ', b'Subject             ', b'Type      ', b'Priority  ',
     	b'>', b'     101 ', b'in nostrud occaecat ', b'Ticket    ', b'-         ',
     	b' ', b'         ', b'                    ', b'          ', b'          ',
@@ -122,6 +122,19 @@ class TestCliPages(TestBase):
     	b' ', b'         ', b'                    ', b'          ', b'          ',
     	b' ', b'         ', b'                    ', b'          ', b'          ',
     	b' ', b'         ', b'                    ', b'          ', b'          '
+    ]
+
+    view_content_init = [
+    	b'        Ticket #', b' ', b'                                 ',
+     	b'         Subject', b' ', b'                                 ',
+    	b'        Assignee', b' ', b'                                 ',
+    	b'            Tags', b' ', b'                                 ',
+    	b'            Type', b' ', b'Ticket                           ',
+    	b'        Priority', b' ', b'-                                ',
+    	b'     Description', b' ', b'                                 ',
+    	b'                                                  ',
+    	b'                                                  ',
+    	b'                                                  '
     ]
 
     @classmethod
@@ -158,7 +171,7 @@ class TestCliPages(TestBase):
         text_content = list(
             text for _, _, text in itertools.chain(*composite.content())
         )
-        self.assertEqual(text_content, self.expected_start_content)
+        self.assertEqual(text_content, self.list_content_start)
 
     def test_ticket_list_render_paging_small(self):
         """
@@ -181,7 +194,7 @@ class TestCliPages(TestBase):
             text for _, _, text in itertools.chain(*composite.content())
         )
 
-        expected = copy(self.expected_start_content)
+        expected = copy(self.list_content_start)
         expected[5] = b' '
         expected[10] = b'>'
         self.assertEqual(text_content, expected)
@@ -220,7 +233,19 @@ class TestCliPages(TestBase):
         text_content = list(
             text for _, _, text in itertools.chain(*composite.content())
         )
-        self.assertEqual(text_content, self.expected_end_content)
+        self.assertEqual(text_content, self.list_content_end)
+
+    def test_ticket_view_render_blank(self):
+
+        ticket_view = TicketViewPage(AppFrame(client=self.client))
+
+        screen_size = (50, 10)
+
+        composite = ticket_view.render(screen_size, True)
+        text_content = list(
+            text for _, _, text in itertools.chain(*composite.content())
+        )
+        self.assertEqual(text_content, self.view_content_init)
 
 class TestCliApp(TestBase):
     @classmethod
