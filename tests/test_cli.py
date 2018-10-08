@@ -17,7 +17,7 @@ import zenpy
 from six import MovedModule, add_move
 from test_core import TestBase
 from zendesk_ticket_viewer.cli.app import AppFrame, ZTVApp
-from zendesk_ticket_viewer.cli.pages import (BlankPage, TicketCell,
+from zendesk_ticket_viewer.cli.pages import (BlankPage, ErrorPage, TicketCell,
                                              TicketListPage)
 from zendesk_ticket_viewer.cli.widgets import (FormFieldHorizontalPass,
                                                TicketColumn)
@@ -249,6 +249,19 @@ class TestCliApp(TestBase):
         	b'                                                  ',
         	b'                                                  '
         ])
+
+    def test_appframe_error(self):
+        frame = AppFrame(client=self.client, title="Test App")
+
+        frame.add_page('ERROR', ErrorPage)
+        frame.modal_fatal_error("message", "exc")
+
+        self.assertEqual(frame.current_page_id, "ERROR")
+        self.assertEqual(frame.pages['ERROR'].page_title, "Error: message")
+        self.assertEqual(
+            frame.pages['ERROR'].error_details,
+            "exc\n\npress ctrl-c to exit"
+        )
 
     def test_app_blank(self):
         app = ZTVApp(config=self.config)
