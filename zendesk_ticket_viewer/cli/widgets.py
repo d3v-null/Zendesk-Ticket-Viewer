@@ -36,7 +36,7 @@ class FormFieldHorizontal(urwid.Columns):
 
     _default_lbl_class = TicketCell
     _default_lbl_style = 'column_header'
-    _default_val_class = TicketCell
+    _default_val_class = urwid.Text
     _default_val_style = 'column'
     _default_val_kwargs = {}
 

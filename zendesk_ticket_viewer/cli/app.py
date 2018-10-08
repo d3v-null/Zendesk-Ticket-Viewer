@@ -44,6 +44,9 @@ class AppFrame(urwid.Frame, AppElementMixin):
         ('priority', {
             'formatter': (lambda x: x or '-')
         }),
+        ('description', {
+            'list_view': False
+        }),
         # TODO: conversations
     ])
 
