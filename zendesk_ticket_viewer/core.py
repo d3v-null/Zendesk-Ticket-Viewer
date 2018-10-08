@@ -97,6 +97,7 @@ def critical_error_exit(message=None, exc=None):
     ])
 
     screen = urwid.raw_display.Screen()
+
     maxcol, maxrow = screen.get_cols_rows()
 
     box = urwid.Overlay(
@@ -118,8 +119,11 @@ def critical_error_exit(message=None, exc=None):
         screen=screen,
         unhandled_input=stop_nowish
     )
-
-    loop.run()
+    try:
+        loop.run()
+    except Exception:
+        # running the loop in pytest fails, but it's already been logged anyway
+        pass
 
     exit()
 

@@ -8,7 +8,7 @@ import configargparse
 from context import TEST_DATA_DIR
 from six import MovedModule, add_move
 from zendesk_ticket_viewer.core import (get_client, get_config,
-                                        validate_connection)
+                                        validate_connection, critical_error_exit)
 from zendesk_ticket_viewer.exceptions import ZTVConfigException
 
 if True:
@@ -106,3 +106,7 @@ class TestMainMocked(TestBase):
         api = get_client(config)
         self.assertEqual(api.tickets.subdomain, config.subdomain)
         self.assertEqual(api.tickets.session.auth, (config.email, config.password))
+
+    def test_critical_error_exit(self):
+        with self.assertRaises(SystemExit):
+            critical_error_exit('message', 'details')
