@@ -14,6 +14,7 @@ from collections import OrderedDict
 import requests
 
 import numpy
+import six
 import urwid
 import zenpy
 from urwid.compat import with_metaclass
@@ -22,7 +23,6 @@ from . import PKG_NAME
 from .util import wrap_connection_error
 
 # TODO: remove numpy dependency, it takes forever to install on WSL'
-
 
 
 PKG_LOGGER = logging.getLogger(PKG_NAME)
@@ -134,6 +134,18 @@ class AppElementMixin(with_metaclass(urwid.MetaSuper)):
 
     def _action_exit(self, *_):
         raise urwid.ExitMainLoop()
+
+    def _get_markup(self, ticket_dict, key, formatter=None):
+        formatter = formatter or id
+
+        unformatted = ticket_dict.get(key, '')
+        try:
+            return formatter(unformatted)
+        except UnicodeEncodeError:
+            if not isinstance(unformatted, six.text_type):
+                unformatted = six.text_type(unformatted)
+            unformatted = (unformatted).encode('ascii', errors='ignore')
+            return formatter(unformatted)
 
     def modal_fatal_error(self, message=None, exc=None):
         """
@@ -352,7 +364,9 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         }
         cell_widgets = []
         for index, ticket in enumerate(visible_tickets):
-            cell_kwargs['markup'] = formatter(ticket.to_dict().get(key, ''))
+            cell_kwargs['markup'] = self._get_markup(
+                ticket.to_dict(), key, formatter
+            )
             if key == '_selected' and index == index_highlighted:
                 cell_kwargs['markup'] = '>'
             cell_widget = TicketCell(**cell_kwargs)
@@ -488,7 +502,7 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
             meta = self.parent_frame.column_meta.get(wg_field.key, {})
             _, (wg_field_value, _) = wg_field.contents
             formatter = meta.get('formatter', str)
-            markup = formatter(ticket_dict.get(wg_field.key, ''))
+            markup = self._get_markup(ticket_dict, wg_field.key, formatter)
             if wg_field_value.text != markup:
                 wg_field_value.set_text(markup)
 
