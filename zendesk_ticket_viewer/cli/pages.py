@@ -84,19 +84,15 @@ class AppElementMixin(with_metaclass(urwid.MetaSuper)):
         """Cause a fatal error to be displayed and the program to exit."""
         message = "Error: {}".format(message) if message else "Fatal Error"
 
-        if message:
-            PKG_LOGGER.critical(message)
-        if exc:
-            PKG_LOGGER.critical(exc)
         # This could be called from a parent frame or a page.
         parent_frame = getattr(self, 'parent_frame', self)
-        if 'ERROR' not in parent_frame.pages:
-            parent_frame.add_page('ERROR', ErrorPage)
         if message:
+            PKG_LOGGER.critical(message)
             parent_frame.pages['ERROR'].page_title = message
 
         details = []
         if exc:
+            PKG_LOGGER.critical(exc)
             details.insert(0, str(exc))
         details.append("press ctrl-c to exit")
         parent_frame.pages['ERROR'].error_details = "\n\n".join(details)
@@ -374,8 +370,6 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         """Open view of selected ticket."""
         ticket = self._ticket_cache[self.offset + self.index_highlighted]
         PKG_LOGGER.debug('Actioning ticket id={}'.format(ticket))
-        if 'TICKET_VIEW' not in self.parent_frame.pages:
-            self.parent_frame.add_page(TicketViewPage)
         self.parent_frame.pages['TICKET_VIEW'].current_ticket = ticket
         self.parent_frame.set_page('TICKET_VIEW')
 

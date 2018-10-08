@@ -11,8 +11,8 @@ import urwid
 from urwid.compat import with_metaclass
 
 from ..core import PKG_LOGGER
-from .pages import (AppElementMixin, BlankPage, TicketListPage, TicketViewPage,
-                    WelcomePage)
+from .pages import (AppElementMixin, BlankPage, ErrorPage, TicketListPage,
+                    TicketViewPage, WelcomePage)
 
 # TODO: remove numpy dependency, it takes forever to install on WSL'
 
@@ -207,6 +207,7 @@ class ZTVApp(with_metaclass(urwid.MetaSuper, urwid.MainLoop)):
         self.frame.add_page('WELCOME', WelcomePage)
         self.frame.add_page('TICKET_LIST', TicketListPage)
         self.frame.add_page('TICKET_VIEW', TicketViewPage)
+        self.frame.add_page('ERROR', ErrorPage)
         self.frame.set_page('WELCOME')
         if getattr(self.config, 'unpickle_tickets'):
             # no creds required when unpickle_tickets so bypass log in
