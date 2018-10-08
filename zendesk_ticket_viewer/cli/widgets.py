@@ -96,7 +96,7 @@ class FormFieldHorizontalPass(FormFieldHorizontalEdit):
 
     def __init__(self, field_label, field_value, *args, **kwargs):
         """Wrap __init__ so field_value is edit_text, not caption."""
-        kwargs['val_kwargs'] = {'edit_text': field_value}
+        kwargs['val_kwargs'] = {'edit_text': field_value or ''}
         field_value = ''
         self.__super.__init__(field_label, field_value, *args, **kwargs)
 
