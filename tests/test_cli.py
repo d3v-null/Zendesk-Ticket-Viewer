@@ -16,7 +16,7 @@ import urwid
 import zenpy
 from six import MovedModule, add_move
 from test_core import TestBase
-from zendesk_ticket_viewer.cli.app import AppFrame
+from zendesk_ticket_viewer.cli.app import AppFrame, ZTVApp
 from zendesk_ticket_viewer.cli.pages import (BlankPage, TicketCell, TicketListPage)
 from zendesk_ticket_viewer.cli.widgets import TicketColumn
 from zendesk_ticket_viewer.core import get_client
@@ -26,11 +26,7 @@ if True:
     add_move(MovedModule('mock', 'mock', 'unittest.mock'))
     from six.moves import mock
 
-class TestCli(TestBase):
-    """
-    TODO: Split this into things that need client
-    """
-
+class TestCliWidgets(TestBase):
     def test_ticket_cell_render(self):
         """
         Test that ticket cells truncates rendered text by default
@@ -77,10 +73,7 @@ class TestCli(TestBase):
             ]
         )
 
-class TestCliClient(TestBase):
-    """
-    TODO: Split this into things that need client
-    """
+class TestCliPages(TestBase):
     # Cache client because it is costly to unpickle every test.
     _client_cache = None
 
@@ -208,6 +201,11 @@ class TestCliClient(TestBase):
         )
         self.assertEqual(text_content, self.expected_end_content)
 
+class TestCliApp(TestBase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_client(cls.config)
+
     def test_appframe_blank(self):
         frame = AppFrame(client=self.client, title="Test App")
 
@@ -230,3 +228,8 @@ class TestCliClient(TestBase):
         	b'                                                  ',
         	b'                                                  '
         ])
+
+    def test_app_blank(self):
+        app = ZTVApp(config=self.config)
+        # since unpickle tickets is True, should bypass login
+        self.assertEqual(app.frame.current_page_id, 'TICKET_LIST')
