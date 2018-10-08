@@ -17,8 +17,10 @@ import zenpy
 from six import MovedModule, add_move
 from test_core import TestBase
 from zendesk_ticket_viewer.cli.app import AppFrame, ZTVApp
-from zendesk_ticket_viewer.cli.pages import (BlankPage, TicketCell, TicketListPage)
-from zendesk_ticket_viewer.cli.widgets import TicketColumn
+from zendesk_ticket_viewer.cli.pages import (BlankPage, TicketCell,
+                                             TicketListPage)
+from zendesk_ticket_viewer.cli.widgets import (FormFieldHorizontalPass,
+                                               TicketColumn)
 from zendesk_ticket_viewer.core import get_client
 
 if True:
@@ -72,6 +74,25 @@ class TestCliWidgets(TestBase):
                 b'          '
             ]
         )
+
+    def test_form_field_horizontal_pass(self):
+        """
+        Edge case when `password` is `None`
+        """
+        wg_pass = FormFieldHorizontalPass(
+            "Password: ",
+            None,
+            key='password'
+        )
+        canvas = wg_pass.render((30,))
+        text_content = [
+            text for _, _, text in itertools.chain(*canvas.content())
+        ]
+        self.assertEqual(
+            text_content,
+            [b'Password: ', b' ', b'                   ']
+        )
+
 
 class TestCliPages(TestBase):
     # Cache client because it is costly to unpickle every test.
