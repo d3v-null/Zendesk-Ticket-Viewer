@@ -41,7 +41,7 @@ SETUP_KWARGS = dict(
         'Programming Language :: Python :: 3.6',
     ],
     keywords='ZenDesk Ticket',
-    py_modules=[PKG_NAME],
+    packages=[PKG_NAME],
     install_requires=[
         'zenpy',
         'configargparse',
@@ -58,7 +58,7 @@ SETUP_KWARGS = dict(
     ],
     entry_points={  # Creates a console script entry point on install
         'console_scripts': [
-            '{0}={0}.core:main'.format(PKG_NAME),
+            '{0}={0}.__main__:main'.format(PKG_NAME),
         ],
     },
 )

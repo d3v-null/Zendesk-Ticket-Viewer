@@ -5,23 +5,23 @@ TODO:
     - method to restore pickled tickets into blank api object cache
 """
 
-from __future__ import print_function, unicode_literals, division
+from __future__ import division, print_function, unicode_literals
 
 import functools
+import itertools
 import json
 import logging
 import pickle
 import sys
-import itertools
 import time
 
 import requests
 
 import configargparse
+import six
+import urwid
 import zenpy
 from zenpy import Zenpy
-import urwid
-import six
 
 from . import PKG_NAME
 from .cli_urwid import ZTVApp
@@ -230,7 +230,8 @@ def get_client(config):
     except zenpy.lib.exception.ZenpyException as exc:
         if unpickle_tickets:
             zenpy_args['password'] = zenpy_args['password'] or 'dummy_pass'
-            zenpy_args['subdomain'] = zenpy_args['subdomain'] or 'dummy_subdomain'
+            zenpy_args['subdomain'] = zenpy_args['subdomain'] \
+                or 'dummy_subdomain'
             zenpy_args['email'] = zenpy_args['email'] or 'dummy_email'
             zenpy_client = Zenpy(**zenpy_args)
         else:
@@ -257,41 +258,3 @@ def pickle_tickets(config, client):
         tickets = [ticket.to_json() for ticket in ticket_generator]
         # needs to be unpickable on PY2 and PY3
         pickle.dump(tickets, dump_file, protocol=2)
-
-
-def main():
-    """Provide Core functionality of ticket viewer."""
-    config = get_config()
-
-    setup_logging(config)
-
-    # The Ticket Viewer should handle the API being unavailable
-    wrap_connection_error(
-        functools.partial(validate_connection, config),
-        attempting="Validate connection",
-        on_fail=critical_error_exit,
-        on_success=functools.partial(
-            PKG_LOGGER.info, "Connection validated"
-        )
-    )
-
-    zenpy_client = wrap_connection_error(
-        functools.partial(get_client, config),
-        attempting="Create client",
-        on_fail=critical_error_exit,
-        on_success=functools.partial(
-            PKG_LOGGER.info, "Client created"
-        )
-    )
-
-    # hand over to cli
-
-    if config.pickle_tickets:
-        pickle_tickets(config, zenpy_client)
-
-    ztv_app = ZTVApp(zenpy_client)
-    ztv_app.run()
-
-
-if __name__ == '__main__':
-    main()

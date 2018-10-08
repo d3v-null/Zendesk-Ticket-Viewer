@@ -1,5 +1,6 @@
 import os
+import sys
 
-
-DIR_NAME = os.path.dirname(__file__)
-PKG_NAME = os.path.basename(DIR_NAME)
+PKG_DIR = os.path.dirname(__file__)
+PKG_NAME = os.path.basename(PKG_DIR)
+REPO_DIR = os.path.dirname(PKG_DIR)
