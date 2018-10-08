@@ -7,19 +7,31 @@ A simple python CLI utility which views support tickets using the Zendesk API
 
 # Installation
 
+## Widnows
+
+In order to run this on Windows you will need to install either [windodows subsystem for linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) if you have windows 10 or newer, or [cygwin](https://cygwin.com/install.html)
+
+## Any other OS
+
+Ensure you have python, pip and setuptools on your machine (this works on either Python2 or 3 so choose whatever version you prefer):
+
+```bash
+sudo apt-get update && sudo apt-get install python python-pip setuptools
+```
+
 Install the `zendesk_ticket_viewer` console script to your path with
 
 ```bash
 python setup.py install
 ```
 
-Use develop instead of install if you would like make changes to this module.
+Note: you may need to use the additional flag `--user` if you get a permission error.
+
+Replace `install` with  `develop` instead of install if you would like make changes to this module that will be take affect right away.
 
 # Testing
 
-In order to perform tests, it is assumed that the account you are using has been
-populated with the test data in `tests/test_data/tickets.json`. To populate
-your test account with this data, you can use the script `populate_test_data.sh`
+In order to perform tests, it is a good idea to populate a tst Zendesk account with the data `tests/test_data/tickets.json`. To do this, you can use the script `populate_test_data.sh`
 
 ```bash
 ZENDESK_SUBDOMAIN='subdomain' \
