@@ -109,4 +109,4 @@ class TestMainMocked(TestBase):
 
     def test_critical_error_exit(self):
         with self.assertRaises(SystemExit):
-            critical_error_exit('message', 'details')
+            critical_error_exit('message', ZTVConfigException('details'))
