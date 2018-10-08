@@ -200,32 +200,9 @@ def validate_connection(config, session=None):
             "Subdomain provided does not exist: %s" % config.subdomain)
 
 
-def get_client(config):
-    """Given a `config`, create a Zenpy API client."""
-    zenpy_args = dict([
-        (zenpy_key, getattr(config, config_key, None))
-        for zenpy_key, config_key in [
-            ('email', 'email'),
-            ('password', 'password'),
-            ('subdomain', 'subdomain')
-        ]
-    ])
-
-    unpickle_tickets = getattr(config, 'unpickle_tickets', None)
-
-    try:
-        zenpy_client = Zenpy(**zenpy_args)
-    except zenpy.lib.exception.ZenpyException as exc:
-        if unpickle_tickets:
-            zenpy_args['password'] = zenpy_args['password'] or 'dummy_pass'
-            zenpy_args['subdomain'] = zenpy_args['subdomain'] \
-                or 'dummy_subdomain'
-            zenpy_args['email'] = zenpy_args['email'] or 'dummy_email'
-            zenpy_client = Zenpy(**zenpy_args)
-        else:
-            raise ZTVConfigException(str(exc))
-
-    if unpickle_tickets:
+def handle_pickling(config, zenpy_client):
+    """Perform pickling or unpickling as determined by config."""
+    if getattr(config, 'unpickle_tickets', None):
         # Chose LRUCache because TTL cache deletes things
         cache = zenpy.ZenpyCache('LRUCache', maxsize=10000)
         # TODO: fill zenpy_client.tickets.cache with data from file
@@ -240,6 +217,32 @@ def get_client(config):
         pickle_tickets(config, zenpy_client)
 
     return zenpy_client
+
+
+def get_client(config):
+    """Given a `config`, create a Zenpy API client."""
+    zenpy_args = dict([
+        (zenpy_key, getattr(config, config_key, None))
+        for zenpy_key, config_key in [
+            ('email', 'email'),
+            ('password', 'password'),
+            ('subdomain', 'subdomain')
+        ]
+    ])
+
+    try:
+        zenpy_client = Zenpy(**zenpy_args)
+    except zenpy.lib.exception.ZenpyException as exc:
+        if getattr(config, 'unpickle_tickets', None):
+            zenpy_args['password'] = zenpy_args['password'] or 'dummy_pass'
+            zenpy_args['subdomain'] = zenpy_args['subdomain'] \
+                or 'dummy_subdomain'
+            zenpy_args['email'] = zenpy_args['email'] or 'dummy_email'
+            zenpy_client = Zenpy(**zenpy_args)
+        else:
+            raise ZTVConfigException(str(exc))
+
+    return handle_pickling(config, zenpy_client)
 
 
 def pickle_tickets(config, client):
