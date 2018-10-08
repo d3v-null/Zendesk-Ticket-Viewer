@@ -166,9 +166,8 @@ class AppFrame(urwid.Frame, AppElementMixin):
         PKG_LOGGER.debug("current page is {}".format(self.current_page_id))
         self._mix_render(size, focus)
 
-        if self.loop is not None:
-            if self.current_page_id == 'BLANK':
-                raise urwid.ExitMainLoop()
+        if self.loop is not None and self.current_page_id == 'BLANK':
+            raise urwid.ExitMainLoop()
 
         return self.__super.render(size, focus)
 
