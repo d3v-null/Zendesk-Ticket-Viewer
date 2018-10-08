@@ -11,6 +11,8 @@ from collections import OrderedDict
 
 import requests
 
+# TODO: remove numpy dependency, it takes forever to install on WSL'
+
 import numpy
 import urwid
 import zenpy
@@ -94,7 +96,8 @@ class AppElementMixin(with_metaclass(urwid.MetaSuper)):
     """
     Functionality common to app elements.
 
-    Override `refresh_widgets`, runs whenever `render` or `keypress` is called.
+    - Run `refresh_widgets` whenever `render` or `keypress` is called.
+    - Handle events.
     """
 
     # A mapping of keys to actions (override this).
@@ -125,21 +128,33 @@ class AppElementMixin(with_metaclass(urwid.MetaSuper)):
 
         self.refresh_widgets(size)
 
+    def _action_exit(self, *_):
+        raise urwid.ExitMainLoop()
+
     def modal_fatal_error(self, message=None, exc=None):
-        parent_app = self.parent_app if hasattr(self, 'parent_app') else self
-        if 'ERROR' not in parent_app.pages:
-            parent_app.add_page('ERROR', ErrorPage)
+        """
+        Cause a fatal error to be displayed and the program to exit
+        """
+        message = "Error: {}".format(message) if message else "Fatal Error"
+
         if message:
-            parent_app.pages['ERROR'].page_title = message
+            PKG_LOGGER.critical(message)
+        if exc:
+            PKG_LOGGER.critical(exc)
+        # This could be called from a parent frame or a page.
+        parent_frame = getattr(self, 'parent_frame', self)
+        if 'ERROR' not in parent_frame.pages:
+            parent_frame.add_page('ERROR', ErrorPage)
+        if message:
+            parent_frame.pages['ERROR'].page_title = message
 
         details = []
         if exc:
             details.insert(0, str(exc))
         details.append("press ctrl-c to exit")
-        parent_app.pages['ERROR'].error_details = "\n\n".join(details)
-        parent_app.set_page('ERROR')
+        parent_frame.pages['ERROR'].error_details = "\n\n".join(details)
+        parent_frame.set_page('ERROR')
 
-        message = message or "Fatal Error"
 
 class AppPageMixin(AppElementMixin):
     """Provide the interface for a page within an app."""
@@ -149,7 +164,7 @@ class AppPageMixin(AppElementMixin):
 
     def __init__(self):
         """Wrap super __init__ as per `urwid.MetaClass` spec."""
-        assert self.parent_app
+        assert self.parent_frame
         self.__super.__init__()
 
     @property
@@ -171,9 +186,9 @@ class AppPageMixin(AppElementMixin):
 class BlankPage(urwid.ListBox, AppPageMixin):
     """A blank app page."""
 
-    def __init__(self, parent_app, *args, **kwargs):
+    def __init__(self, parent_frame, *args, **kwargs):
         """Wrap super `__init__` with extra metadata."""
-        self.parent_app = parent_app
+        self.parent_frame = parent_frame
         self.__super.__init__(urwid.SimpleListWalker([]))
 
 
@@ -201,7 +216,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         'page down': 'scroll',
     }
 
-    def __init__(self, parent_app, *args, **kwargs):
+    def __init__(self, parent_frame, *args, **kwargs):
         """Wrap super `__init__` with extra metadata."""
         # Cache access to generator to avoid api calls
         self._ticket_cache = []
@@ -211,43 +226,55 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         self.index_highlighted = 0
         # Force a space of 1 between columns
         kwargs['dividechars'] = 0
-        self.parent_app = parent_app
+        self.parent_frame = parent_frame
         self._ticket_generator = None
         self.__super.__init__(
             self.initial_column_widgets(), *args, **kwargs
         )
 
-        # Refresh widgets as if there was room for 1 row (otherwise blank).
-        # HACK: find a more elegant solution for this
-        self.refresh_widgets((None, self.nonbody_overhead + 1))
-
     @property
     def ticket_generator(self):
         """Try and get generator of tickets from API otherwise use cache."""
-        if self._ticket_generator is None:
-            client = self.parent_app.client
-            cache = client.tickets.cache.mapping['ticket'].cache
-            # if we are in offline mode
-            if cache.__class__.__name__ != 'TTLCache':
-                self._ticket_generator = cache.values().__iter__()
-                return self._ticket_generator
+        if self._ticket_generator is not None:
+            return self._ticket_generator
 
-            def injected():
-                self._ticket_generator = client.tickets(timeout=10)
-            wrap_connection_error(
-                injected, attempting="Connecting to API",
-                on_fail=functools.partial(self.modal_fatal_error),
+        client = self.parent_frame.client
+        cache = client.tickets.cache.mapping['ticket'].cache
+        # if we are in offline mode
+
+        if cache.__class__.__name__ != 'TTLCache':
+            self._ticket_generator = cache.values().__iter__()
+        else:
+            def fatal(*args):
+                self.modal_fatal_error(*args)
+            self._ticket_generator = wrap_connection_error(
+                functools.partial(client.tickets, timeout=5),
+                attempting="Connecting to API",
+                on_fail=fatal,
+                on_success=functools.partial(
+                    PKG_LOGGER.info, "Connected to API"
+                )
             )
-
+        # assert self._ticket_generator, \
+        #     "failure to make generator should be caught"
         return self._ticket_generator
 
     @property
     def next_ticket(self):
-        return wrap_connection_error(
-            injected=functools.partial(next, self.ticket_generator),
+        # get before wrap so that we don't wrap twice
+        generator = self.ticket_generator
+        if generator is None:
+            # want to exit getting ticket_generator cleanly in case there
+            # was an error that needs to be displayed
+            raise StopIteration()
+        response = wrap_connection_error(
+            injected=functools.partial(next, generator),
             attempting="Making an API request",
             on_fail=functools.partial(self.modal_fatal_error),
         )
+        if response is None:
+            raise StopIteration()
+        return response
 
     @property
     def nonbody_overhead(self):
@@ -276,7 +303,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
             ))
         ]
         # Other widget columns show ticket data
-        for key, meta in self.parent_app.column_meta.items():
+        for key, meta in self.parent_frame.column_meta.items():
             if 'list_view' in meta and not meta['list_view']:
                 continue
             title = meta.get('title', key.title())
@@ -305,7 +332,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         prefetch_index = 2 * (limit) + offset
 
         try:
-            while True:
+            while self.ticket_generator is not None:
                 if prefetch_index < len(self._ticket_cache):
                     break
                 self._ticket_cache.append(self.next_ticket)
@@ -314,7 +341,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         return self._ticket_cache[offset:offset + limit]
 
     def _get_cell_widgets(self, key, visible_tickets, index_highlighted):
-        meta = self.parent_app.column_meta.get(key, {})
+        meta = self.parent_frame.column_meta.get(key, {})
         formatter = meta.get('formatter', str)
         cell_kwargs = {
             'align': meta.get('align', urwid.LEFT)
@@ -340,7 +367,7 @@ class TicketListPage(urwid.Columns, AppPageMixin):
 
         """
         PKG_LOGGER.debug('refreshing, size={}'.format(size))
-        self._action_scroll(size, None)
+        self._action_scroll(size)
 
         _, maxcol = size
         visible_tickets = self.get_tickets(
@@ -395,17 +422,17 @@ class TicketListPage(urwid.Columns, AppPageMixin):
         self.offset = numpy.clip(
             self.offset + movement,
             0,
-            len(self._ticket_cache) - 1
+            max(len(self._ticket_cache) - 1, 0)
         )
 
     def _action_open(self, *_):
         """Open view of selected ticket."""
         ticket = self._ticket_cache[self.offset + self.index_highlighted]
         PKG_LOGGER.debug('Actioning ticket id={}'.format(ticket))
-        if 'TICKET_VIEW' not in self.parent_app.pages:
-            self.parent_app.add_page(TicketViewPage)
-        self.parent_app.pages['TICKET_VIEW'].current_ticket = ticket
-        self.parent_app.set_page('TICKET_VIEW')
+        if 'TICKET_VIEW' not in self.parent_frame.pages:
+            self.parent_frame.add_page(TicketViewPage)
+        self.parent_frame.pages['TICKET_VIEW'].current_ticket = ticket
+        self.parent_frame.set_page('TICKET_VIEW')
 
     def keypress(self, size, key):
         """Wrap super `keypress` and perform actions / scroll."""
@@ -428,9 +455,9 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
     )
     _title = "Ticket View"
 
-    def __init__(self, parent_app, *args, **kwargs):
+    def __init__(self, parent_frame, *args, **kwargs):
         """Wrap super `__init__` with extra metadata."""
-        self.parent_app = parent_app
+        self.parent_frame = parent_frame
         self.current_ticket = None
         self.__super.__init__(urwid.SimpleListWalker(
             self.initial_row_widgets()
@@ -440,7 +467,7 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
         """Initialize the row widgets to be updated later."""
         widget_list = []
 
-        for key, meta in self.parent_app.column_meta.items():
+        for key, meta in self.parent_frame.column_meta.items():
             field_name = meta.get('title', key.title())
             field_class = meta.get('field_class', TicketFieldHorizontal)
             widget_list.append(field_class(field_name, key=key))
@@ -454,7 +481,7 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
             ticket_dict = self.current_ticket.to_dict()
 
         for wg_field in self.body.contents:
-            meta = self.parent_app.column_meta.get(wg_field.key, {})
+            meta = self.parent_frame.column_meta.get(wg_field.key, {})
             _, (wg_field_value, _) = wg_field.contents
             formatter = meta.get('formatter', str)
             markup = formatter(ticket_dict.get(wg_field.key, ''))
@@ -475,31 +502,37 @@ class TicketViewPage(urwid.ListBox, AppPageMixin):
 class ErrorPage(urwid.Overlay, AppPageMixin):
     """An app page which displays an error."""
     _usage = (
-        u"F8 exits."
+        u"F8 / ESC exits."
     )
 
-    def __init__(self, parent_app, *args, **kwargs):
+    key_actions = {
+        'f8': 'exit',
+        'esc': 'exit',
+        'ctrl c': 'exit',
+    }
+
+    def __init__(self, parent_frame, *args, **kwargs):
         """Wrap super `__init__` with extra metadata."""
-        self.parent_app = parent_app
+        self.parent_frame = parent_frame
         self._title = kwargs.get('error_message', 'Error')
         self.error_details = kwargs.get('error_details', 'An Error occured.')
 
         # popup = urwid.Text(self.error_message)
         self.__super.__init__(
             urwid.AttrWrap(
-                urwid.LineBox(urwid.ListBox(urwid.SimpleFocusListWalker([
-                    urwid.Text(self.error_details, align='center')
-                ]))),
+                urwid.LineBox(
+                    urwid.ListBox(urwid.SimpleFocusListWalker([
+                        urwid.Divider(),
+                        urwid.Text(self.error_details, align='center')
+                    ])),
+                    title=self.page_title
+                ),
                 'header'
             ),
-            self.parent_app.current_page,
-            align='center', width=('relative', 80),
-            valign='middle', height=('relative', 80),
+            self.parent_frame.current_page,
+            align='center', width=('relative', 50),
+            valign='middle', height=('relative', 50),
             min_width=24, min_height=8,
-            left=1,
-            right=1,
-            top=1,
-            bottom=1
         )
 
     @AppPageMixin.page_title.setter
@@ -508,7 +541,10 @@ class ErrorPage(urwid.Overlay, AppPageMixin):
 
     def refresh_widgets(self, *_):
         _, (wg_top, _) = self.contents
-        wg_details = wg_top.original_widget.original_widget.body[0]
+        wg_title = wg_top.original_widget.title_widget
+        if wg_title.text != self.page_title:
+            wg_title.set_text(self.page_title)
+        wg_details = wg_top.original_widget.original_widget.body[1]
         if wg_details.text != self.error_details:
             wg_details.set_text(self.error_details)
 
@@ -516,6 +552,12 @@ class ErrorPage(urwid.Overlay, AppPageMixin):
         """Wrap super and mixin `render`s."""
         self._mix_render(size, focus)
         return self.__super.render(size, focus)
+
+    def keypress(self, size, key):
+        """Wrap super `keypress`."""
+        # Scroll regardless of if a move was made
+        self._mix_keypress(size, key)
+        self.__super.keypress(size, key)
 
 
 class AppFrame(urwid.Frame, AppElementMixin):
@@ -550,10 +592,10 @@ class AppFrame(urwid.Frame, AppElementMixin):
 
     key_actions = {
         'esc': 'back',
-        'e': 'error',
+        # 'e': 'error',
     }
 
-    def __init__(self, title=None, client=None, *args, **kwargs):
+    def __init__(self, title=None, client=None, loop=None, *args, **kwargs):
         """Wrap super __init__ with extra meta."""
         self.title = title or ''
         # Mapping of pageIDs to widgets
@@ -564,6 +606,8 @@ class AppFrame(urwid.Frame, AppElementMixin):
         self.page_stack = []
         # API Client,
         self.client = client
+        # App event loop
+        self.loop = loop
         self.__super.__init__(
             header=self.initial_header_widget(),
             body=self.current_page,
@@ -659,8 +703,24 @@ class AppFrame(urwid.Frame, AppElementMixin):
         return self.__super.render(size, focus)
 
 
-class ZTVApp(object):
-    """Provide CLI app functionality."""
+class ZTVApp(with_metaclass(urwid.MetaSuper, urwid.MainLoop)):
+    """Provide CLI app event loop functionality."""
+
+    palette = [
+        ('body', 'black', 'light gray', 'standout'),
+        ('reverse', 'light gray', 'black'),
+        ('column_header', 'dark blue', 'black', ('bold', 'underline')),
+        ('column', 'light gray', 'black'),
+        ('header', 'white', 'dark red', 'bold'),
+        ('important_header', 'white', 'dark red', 'bold'),
+        ('important', 'dark blue', 'light gray', ('standout', 'underline')),
+        ('editfc', 'white', 'dark blue', 'bold'),
+        ('editbx', 'light gray', 'dark blue'),
+        ('editcp', 'black', 'light gray', 'standout'),
+        ('footer', 'dark gray', 'light gray', ('bold', 'standout')),
+        ('buttn', 'black', 'dark cyan'),
+        ('buttnf', 'white', 'dark blue', 'bold'),
+    ]
 
     def __init__(self, client):
         """
@@ -671,42 +731,14 @@ class ZTVApp(object):
             client (:obj:`zenpy.Zenpy`): The Zendesk API client
         """
         self.client = client
+        self.screen = urwid.raw_display.Screen()
+        self.frame = AppFrame(
+            client=self.client, title=u"Zendesk Ticket Viewer", loop=self
+        )
+        self.frame.add_page('TICKET_LIST', TicketListPage)
+        self.frame.add_page('TICKET_VIEW', TicketViewPage)
+        self.frame.set_page('TICKET_LIST')
 
-    def run(self):
-        """Start the TUI app."""
-        PKG_LOGGER.debug('Running TUI App')
-
-        frame = AppFrame(client=self.client, title=u"Zendesk Ticket Viewer")
-        frame.add_page('TICKET_LIST', TicketListPage)
-        frame.add_page('TICKET_VIEW', TicketViewPage)
-        frame.set_page('TICKET_LIST')
-
-        palette = [
-            ('body', 'black', 'light gray', 'standout'),
-            ('reverse', 'light gray', 'black'),
-            ('column_header', 'dark blue', 'black', ('bold', 'underline')),
-            ('column', 'light gray', 'black'),
-            ('header', 'white', 'dark red', 'bold'),
-            ('important_header', 'white', 'dark red', 'bold'),
-            (
-                'important', 'dark blue', 'light gray',
-                ('standout', 'underline')
-            ),
-            ('editfc', 'white', 'dark blue', 'bold'),
-            ('editbx', 'light gray', 'dark blue'),
-            ('editcp', 'black', 'light gray', 'standout'),
-            ('footer', 'dark gray', 'light gray', ('bold', 'standout')),
-            ('buttn', 'black', 'dark cyan'),
-            ('buttnf', 'white', 'dark blue', 'bold'),
-        ]
-
-        screen = urwid.raw_display.Screen()
-
-        def unhandled(key):
-            if key == 'f8':
-                raise urwid.ExitMainLoop()
-
-        urwid.MainLoop(
-            frame, palette, screen,
-            unhandled_input=unhandled
-        ).run()
+        self.__super.__init__(
+            widget=self.frame, palette=self.palette, screen=self.screen,
+        )

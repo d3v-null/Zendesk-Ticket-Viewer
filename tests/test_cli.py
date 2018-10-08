@@ -133,7 +133,7 @@ class TestCliClient(TestBase):
         # TODO: finish and test this
         self.assertEqual(page.page_status, "")
 
-    def test_ticket_list_render(self):
+    def test_ticket_list_render_initial(self):
 
         ticket_list = TicketListPage(AppFrame(client=self.client))
 

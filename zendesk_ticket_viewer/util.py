@@ -3,6 +3,7 @@
 import functools
 
 import requests
+import zenpy
 
 from .exceptions import ZTVConfigException
 
@@ -27,9 +28,10 @@ def wrap_connection_error(injected, on_fail, on_success=None, attempting=None):
     except (
         ZTVConfigException,
         requests.exceptions.ConnectionError,
+        zenpy.lib.exception.APIException
     ) as exc:
         on_fail(attempting, exc)
-    else:
-        if on_success:
-            on_success()
+        return
+    if on_success:
+        on_success()
     return response

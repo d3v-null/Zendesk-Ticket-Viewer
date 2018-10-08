@@ -32,6 +32,17 @@ class TestBase(unittest.TestCase):
     )
 
 class TestMainMocked(TestBase):
+    """
+    To Test:
+        - no subdomain
+        - bad subdomain (alskdfj)
+        - bad subdomain (asldkfj.com)
+        - good subdomain, no creds
+        - good subdomain, no connection
+        - good subdomain, partial creds (sdlfkj, )
+        - good subdomain, bad creds (asdlfkj, slkdfj)
+        - good subdomain, good creds, no connection
+    """
 
     def test_get_config_argv(self):
         """Test that the get_config can parse the argv parameter."""

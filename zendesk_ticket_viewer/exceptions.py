@@ -7,3 +7,4 @@ class ZTVException(Exception):
 
 class ZTVConfigException(ZTVException):
     """Raised when An invalid config has been provided."""
+    remedy = 'Use the `--help` switch to display usage instructions'

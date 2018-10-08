@@ -5,19 +5,23 @@ TODO:
     - method to restore pickled tickets into blank api object cache
 """
 
-from __future__ import print_function, unicode_literals
+from __future__ import print_function, unicode_literals, division
 
 import functools
 import json
 import logging
 import pickle
 import sys
+import itertools
+import time
 
 import requests
 
 import configargparse
 import zenpy
 from zenpy import Zenpy
+import urwid
+import six
 
 from . import PKG_NAME
 from .cli_urwid import ZTVApp
@@ -71,26 +75,63 @@ def get_config(argv=None):
     return config
 
 
-def exit_to_console(message=None, exc=None):
-    """Clean up program and exit, displaying a message."""
+def critical_error_exit(message=None, exc=None):
+    """
+    Clean up program and exit, displaying and logging a message.
+
+    Present the message to the user in full screen and is display until an
+    input is received.
+    """
+
+    # log as critical first in case urwid doesn't work
     message = "Failure in %s" % message if message else "Fatal Error"
     logging.critical(message)
     if exc:
-        logging.critical(exc)
+        logging.critical("{} {}".format(exc.__class__, exc))
 
-    padding = 1
-    lines = []
-    for _ in range(2):
-        lines.insert(0, "*" * (2 * padding + len(message) + 2))
-    for _ in range(padding * 2):
-        lines.insert(1, "*%s*" % (" " * (2 * padding + len(message))))
-    lines.insert(
-        padding + 1,
-        "*" + " " * padding + message + " " * padding + "*"
+    widget_list = [
+        urwid.Divider()
+    ]
+    if exc:
+        widget_list.extend([
+            urwid.Text(str(exc), align='center'),
+            urwid.Divider(),
+        ])
+        if getattr(exc, 'remedy', None):
+            widget_list.extend([
+                urwid.Text(str(exc.remedy), align='center'),
+                urwid.Divider(),
+            ])
+    widget_list.extend([
+        urwid.Text("press any key to exit", align='center'),
+        urwid.Divider(),
+    ])
+
+    screen = urwid.raw_display.Screen()
+    maxcol, maxrow = screen.get_cols_rows()
+
+    box = urwid.Overlay(
+        urwid.LineBox(
+            urwid.ListBox(urwid.SimpleFocusListWalker(widget_list)),
+            title=message,
+        ),
+        urwid.SolidFill('/'),
+        align='center', width=maxcol//2,
+        valign='middle', height=maxrow//2
     )
-    print('\n'.join(lines))
-    # TODO: if exc is type excption, do stack trace
-    # TODO: maybe restore terminal settings?
+
+    def stop_nowish(*args):
+        time.sleep(1)
+        raise urwid.ExitMainLoop()
+
+    loop = urwid.MainLoop(
+        widget=box,
+        screen=screen,
+        unhandled_input=stop_nowish
+    )
+
+    loop.run()
+
     exit()
 
 
@@ -108,7 +149,7 @@ def setup_logging(config):
     try:
         PKG_LOGGER.setLevel(getattr(logging, config.verbosity))
     except Exception as exc:
-        exit_to_console("invalid log level string: %s\n%s" % (
+        critical_error_exit("invalid log level string: %s\n%s" % (
             config.verbosity,
             exc
         ))
@@ -162,7 +203,8 @@ def validate_connection(config, session=None):
     response = session.get(
         'https://{subdomain}.zendesk.com/access/unauthenticated'.format(
             subdomain=config.subdomain
-        )
+        ),
+        allow_redirects=False
     )
     if response.status_code != 200:
         raise ZTVConfigException(
@@ -192,8 +234,7 @@ def get_client(config):
             zenpy_args['email'] = zenpy_args['email'] or 'dummy_email'
             zenpy_client = Zenpy(**zenpy_args)
         else:
-            raise exc
-
+            raise ZTVConfigException(str(exc))
 
     if unpickle_tickets:
         # Chose LRUCache because TTL cache deletes things
@@ -228,17 +269,22 @@ def main():
     wrap_connection_error(
         functools.partial(validate_connection, config),
         attempting="Validate connection",
-        on_fail=functools.partial(
-            exit_to_console
-        ),
+        on_fail=critical_error_exit,
         on_success=functools.partial(
             PKG_LOGGER.info, "Connection validated"
         )
     )
 
-    # hand over to cli
+    zenpy_client = wrap_connection_error(
+        functools.partial(get_client, config),
+        attempting="Create client",
+        on_fail=critical_error_exit,
+        on_success=functools.partial(
+            PKG_LOGGER.info, "Client created"
+        )
+    )
 
-    zenpy_client = get_client(config)
+    # hand over to cli
 
     if config.pickle_tickets:
         pickle_tickets(config, zenpy_client)
