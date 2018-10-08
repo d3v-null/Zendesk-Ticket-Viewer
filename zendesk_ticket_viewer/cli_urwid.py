@@ -5,13 +5,13 @@ TODO: split this module into cli.widgets, cli.pages, cli.app to fix
     https://github.com/derwentx/Zendesk-Ticket-Viewer/issues/2
 """
 
+from __future__ import unicode_literals
+
 import functools
 import logging
 from collections import OrderedDict
 
 import requests
-
-# TODO: remove numpy dependency, it takes forever to install on WSL'
 
 import numpy
 import urwid
@@ -20,6 +20,10 @@ from urwid.compat import with_metaclass
 
 from . import PKG_NAME
 from .util import wrap_connection_error
+
+# TODO: remove numpy dependency, it takes forever to install on WSL'
+
+
 
 PKG_LOGGER = logging.getLogger(PKG_NAME)
 
